@@ -1,0 +1,28 @@
+# Changes that the advanced setup makes to services of the simple setup.
+# docker-compose.yml merges this file into ../1-dial-simple-setup/docker-compose.yml.
+#
+# Docker Compose reads this file as part of 1-dial-simple-setup: a relative path
+# here would start from that folder, not from this one.
+services:
+
+  core:
+    environment:
+      # Core merges these files from ../core in order: the simple setup's files
+      # first, then the advanced additions (applications, interceptor, more
+      # models and the roles that control who sees what).
+      aidial.config.files: >-
+        ["/opt/config/1-dial-simple-setup/config.json",
+        "/opt/config/1-dial-simple-setup/quick-apps-schemas.json",
+        "/opt/config/2-dial-advanced-setup/config.json"]
+    # Lets Core reach DIAL entities that you run on your computer outside Docker.
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  ollama-init:
+    environment:
+      # The simple setup's models, plus LLaVA for pictures in AI Agent Sample.
+      # An empty OLLAMA_VISION_MODEL skips the LLaVA download.
+      MODELS_TO_PULL: >-
+        ${OLLAMA_CHAT_MODEL:-qwen2.5:0.5b}
+        ${OLLAMA_SECOND_CHAT_MODEL:-llama3.2:1b}
+        ${OLLAMA_EMBEDDING_MODEL:-all-minilm}
+        ${OLLAMA_VISION_MODEL-llava}

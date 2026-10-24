@@ -1,0 +1,35 @@
+data_dir: /var/lib/vector
+
+sources:
+  core_logs:
+    type: file
+    include: [/app/log/*.log]
+    read_from: beginning
+    oldest_first: true
+    max_line_bytes: 100000000
+
+sinks:
+  analytics:
+    type: http
+    inputs: [core_logs]
+    uri: http://analytics:5000/data
+    method: post
+    encoding:
+      codec: json
+    framing:
+      method: character_delimited
+      character_delimited:
+        delimiter: ","
+    payload_prefix: "["
+    payload_suffix: "]"
+    batch:
+      max_bytes: 1049000
+      timeout_secs: 5
+    request:
+      timeout_secs: 300
+    healthcheck:
+      enabled: false
+    buffer:
+      type: disk
+      max_size: 268435488
+      when_full: block
