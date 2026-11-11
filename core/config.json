@@ -214,6 +214,10 @@
     "dial_api_key": {
       "project": "DIAL-DEMO",
       "role": "default"
+    },
+    "dial_evaluation_api_key": {
+      "project": "DIAL-EVALUATION",
+      "role": "default"
     }
   },
   "roles": {
@@ -224,6 +228,9 @@
       "limits": {}
     },
     "admin": {
+      "limits": {}
+    },
+    "ConfigAdmin": {
       "limits": {}
     }
   },

@@ -10,7 +10,7 @@ answer shows "Executed 2 steps"; open it to see both stages.
 
 ## How it is connected
 
-[`core/1-dial-simple-setup/config.json`](../../../core/1-dial-simple-setup/config.json)
+[`core/config.json`](../../../core/config.json)
 in the repository root registers the interceptor and a model that uses it:
 
 ```json
@@ -40,7 +40,7 @@ the caller's credentials, so it needs no API key of its own.
 
 To intercept another deployment, add `"interceptors": ["pre-post-interceptor"]`
 to it. To intercept every chat request, list it in `globalInterceptors`
-instead; see the [Core documentation](../../../readmes/dial-core-README.md#dynamic-settings).
+instead; see the [Core documentation](https://github.com/epam/ai-dial-core/blob/development/README.md#dynamic-settings).
 
 ## The code
 

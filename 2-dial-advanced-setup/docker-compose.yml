@@ -19,7 +19,7 @@ include:
 services:
 
   # Runs Quick Apps. Core fetches the Quick Apps schema from it
-  # (../core/2-dial-advanced-setup/quick-apps-schemas.json).
+  # (../core/quick-apps-schemas.json).
   quickapps-backend:
     image: epam/ai-dial-quickapps-backend:${DIAL_QUICKAPPS_BACKEND_VERSION:-0.13.1}
     platform: ${DIAL_PLATFORM:-}
@@ -91,7 +91,7 @@ services:
       RUN_MIGRATIONS_ON_START: "true"
       ENV: prod
       DIAL_URL: http://core:8080
-      # Dedicated service identity, registered in ../core/2-dial-advanced-setup/scheduler.json.
+      # Dedicated service identity, registered in ../core/scheduler.json.
       DIAL_API_KEY: dial_scheduler_api_key
       SCHEDULER_APP_ID: public/dial_scheduler
       DB_AUTH_MODE: password
@@ -163,7 +163,7 @@ services:
       POSTGRES_ANALYTICS_DATASOURCE_USERNAME: evaluation
       POSTGRES_ANALYTICS_DATASOURCE_PASSWORD: ${EVALUATION_POSTGRES_PASSWORD:-local-evaluation-password}
       DIAL_CORE_URL: http://core:8080
-      # Must match the key in ../core/2-dial-advanced-setup/config.json.
+      # Must match the key in ../core/config.json.
       DIAL_EF_API_KEY: ${DIAL_EVALUATION_API_KEY:-dial_evaluation_api_key}
       METRIC_PROVIDERS_DIAL_BASE_URL: http://evaluation-metrics:5000
       METRIC_PROVIDERS_SYNC_ENABLED: "true"

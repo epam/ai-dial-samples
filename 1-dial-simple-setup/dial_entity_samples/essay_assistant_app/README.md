@@ -17,7 +17,7 @@ a topic.
   chunk of the model's answer into the response.
 - `EssayAssistantApplication.configuration` returns the conversation
   starters. Chat reads them from the application's configuration endpoint,
-  which [`config.json`](../../../core/1-dial-simple-setup/config.json) registers as
+  which [`config.json`](../../../core/config.json) registers as
   `features.configurationEndpoint`.
 
 `DIALApp` from the [DIAL SDK](https://github.com/epam/ai-dial-sdk) turns the

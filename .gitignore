@@ -6,7 +6,6 @@ __pycache__/
 .venv/
 .DS_Store
 1-dial-simple-setup/credentials/
-2-dial-advanced-setup/credentials/
 # DIAL Core's storage and request logs, created on the first start.
 /core-data/
 /logs/

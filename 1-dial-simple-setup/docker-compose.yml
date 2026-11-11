@@ -111,8 +111,8 @@ services:
       # Server settings, and where Core writes its request logs (/app/log).
       AIDIAL_SETTINGS: /opt/config/settings.json
       JAVA_OPTS: -Dgflog.config=/opt/config/gflog.xml
-      # Only the bootstrap admin key is file-configured; core-config-apply stores the other entities.
-      aidial.config.files: '["/opt/config/1-dial-simple-setup/admin-key.json"]'
+      # Core reads only the admin key from a file; core-config-apply stores the other entities.
+      aidial.config.files: '["/opt/config/admin-key.json"]'
       # List custom applications in Chat.
       aidial.applications.includeCustomApps: "true"
       # Users sign in with Keycloak; Core validates their tokens.
@@ -148,20 +148,19 @@ services:
       retries: 30
       start_period: 30s
 
-  # Copies the models, applications, API keys and roles of
-  # ../core/1-dial-simple-setup/config.json into Core's storage, then exits.
+  # Copies every model, application, interceptor, API key and role of both setups
+  # (../core/config.json and ../core/scheduler.json) into Core's storage, then exits.
   # Each file is applied once and listed in ../core-data/core-config-apply.json;
-  # later starts skip it, so changes made in DIAL Admin are kept.
-  # See ../core-config-apply/README.md.
+  # later starts skip it, so changes made in DIAL Admin are kept. See ../core/README.md.
   core-config-apply:
-    build: ../core-config-apply
+    build: ../core/config-apply
     # Always use the importer shipped with this checkout, including on upgrades.
     pull_policy: build
     environment:
       CORE_URL: http://core:8080
-      # The admin key from ../core/1-dial-simple-setup/admin-key.json.
+      # The admin key from ../core/admin-key.json.
       API_KEY: dial_admin_api_key
-      CONFIG_FILES: core/1-dial-simple-setup/config.json
+      CONFIG_FILES: core/config.json core/scheduler.json
       STATE_FILE: core-data/core-config-apply.json
     volumes:
       - ../core:/dial/core:ro
@@ -293,7 +292,7 @@ services:
         done
     environment:
       OLLAMA_HOST: http://ollama:11434
-      # Must match the "overrideName" values in ../core/1-dial-simple-setup/config.json.
+      # Must match the "overrideName" values in ../core/config.json.
       MODELS_TO_PULL: >-
         ${OLLAMA_CHAT_MODEL:-qwen2.5:0.5b}
         ${OLLAMA_SECOND_CHAT_MODEL:-llama3.2:1b}

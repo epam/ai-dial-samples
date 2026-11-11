@@ -112,34 +112,27 @@ and the Enrichment Runner adds session information on top.
 ## How this folder extends the simple setup
 
 This folder does not copy the simple setup. Its `docker-compose.yml` includes
-it, and `simple-setup-overrides.yml` changes four of its services:
+it, and `simple-setup-overrides.yml` changes three of its services:
 
 | Service | Change |
 | --- | --- |
 | `chat` | Turns on **Scheduled tasks** and allows the Quick Apps editor |
 | `admin-frontend` | Turns on **Evaluation** and **Analytics** |
 | `core` | Reads the Quick Apps application type, signs users in for Scheduler, and logs a few client headers for Analytics |
-| `core-config-apply` | Also applies the advanced setup's files |
 
-`core-config-apply` copies these files into Core's storage on the first start,
-in this order (see
-[how this works](../README.md#how-dial-core-gets-its-models-and-applications)):
-
-1. `../core/1-dial-simple-setup/config.json`: the simple setup's models,
-   applications, API keys and roles;
-2. `../core/2-dial-advanced-setup/config.json`: the Evaluation API key and the
-   `ConfigAdmin` role;
-3. `../core/2-dial-advanced-setup/scheduler.json`: the Scheduler application and
-   its service key.
-
-When you upgrade a running simple setup, it applies only the two new files.
+This setup adds no models or applications of its own. The simple setup's
+`core-config-apply` puts every model, application, interceptor, API key and
+role into Core on the first start, including the ones that only this setup
+uses: the Scheduler application and the Evaluation API key (see
+[how this works](../README.md#how-dial-core-gets-its-models-and-applications)).
+So upgrading a running simple setup changes nothing in Core's storage.
 
 ## Quick Apps
 
 A Quick App is an assistant that you configure in a form instead of writing
 code: instructions, a model, tools. Quick Apps Backend runs them.
 
-`../core/2-dial-advanced-setup/quick-apps-schemas.json` tells Core about the
+`../core/quick-apps-schemas.json` tells Core about the
 Quick Apps application type, and Core reads the full form from Quick Apps
 Backend when it starts. It contains the editor's address,
 `http://localhost:8057`: if you change `QUICKAPPS_FRONTEND_PORT`, change it there
@@ -185,7 +178,7 @@ Call it through Core, so that Scheduler knows which user is calling.
 In DIAL Admin, open **Evaluation**: Datasets, Test Suites and Runs.
 
 - The Evaluation services call Core with the API key `dial_evaluation_api_key`
-  from `../core/2-dial-advanced-setup/config.json`.
+  from `../core/config.json`.
 - Metrics that need an AI judge use `ollama-qwen2.5`, and embedding-based
   metrics use `ollama-all-minilm` (`EVALUATION_JUDGE_MODEL` and
   `EVALUATION_EMBEDDING_MODEL` in `.env`). The small qwen2.5 model is enough to
@@ -241,9 +234,7 @@ In the repository root:
 
 | File or folder | What it is |
 | --- | --- |
-| `core/2-dial-advanced-setup/config.json` | The Evaluation API key and the `ConfigAdmin` role |
-| `core/2-dial-advanced-setup/scheduler.json` | The Scheduler application and its service key |
-| `core/2-dial-advanced-setup/quick-apps-schemas.json` | The Quick Apps application type. Core reads this file itself. |
+| `core/` | Core's configuration, shared with the simple setup. This setup also uses `core/quick-apps-schemas.json`, the Quick Apps application type. See [core/README.md](../core/README.md). |
 | `core-data/`, `logs/` | Core's storage and request logs, shared with the simple setup |
 
 Docker volumes keep the data of the other services: Keycloak users
@@ -300,8 +291,8 @@ curl http://localhost:8062/v1/queries/execute-sql \
 | Analytics shows usage but no sessions | Wait up to 15 minutes. In DIAL Admin, check that the pipelines `usage-client-identity-live` and `sessions_rollup` are enabled. |
 | Analytics does not start after updating these samples | Delete the `DIAL_ANALYTICS_VERSION` line from `.env`, then run `docker compose up --wait --remove-orphans`. Check `docker compose logs analytics analytics-init`. |
 
-See also the simple setup's [troubleshooting](../1-dial-simple-setup/README.md#troubleshooting).
-Reference documentation for each DIAL service is in [readmes](../readmes/).
+See also the simple setup's [troubleshooting](../1-dial-simple-setup/README.md#troubleshooting),
+and the [DIAL documentation](https://docs.dialx.ai) for each service.
 
 ## Updating from InfluxDB analytics
 

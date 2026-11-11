@@ -23,7 +23,7 @@ Each sample needs two things, which are already in place:
    the sample's `Dockerfile` and runs it.
 2. **An entity in Core** that tells Core the service's address and who may use
    it. It comes from
-   [`core/1-dial-simple-setup/config.json`](../../core/1-dial-simple-setup/config.json)
+   [`core/config.json`](../../core/config.json)
    in the repository root, which `core-config-apply` copies into Core on the
    first start. You can see and change it in DIAL Admin.
 
@@ -102,6 +102,6 @@ When you finish, change the address back and run `docker compose up --wait`.
    - **In DIAL Admin** (easiest): create the application, model or
      interceptor, with your service's address.
    - **In `config.json`**: add an entry to
-     `../../core/1-dial-simple-setup/config.json`, next to the samples' entries,
+     `../../core/config.json`, next to the samples' entries,
      then [apply the file again](../README.md#apply-configjson-again). This
      also resets your Admin changes to the other entities of that file.

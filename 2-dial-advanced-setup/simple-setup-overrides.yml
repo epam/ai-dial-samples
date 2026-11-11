@@ -37,9 +37,7 @@ services:
 
   core:
     environment:
-      aidial.config.files: >-
-        ["/opt/config/1-dial-simple-setup/admin-key.json",
-        "/opt/config/2-dial-advanced-setup/quick-apps-schemas.json"]
+      aidial.config.files: '["/opt/config/admin-key.json", "/opt/config/quick-apps-schemas.json"]'
       # Reuse the existing confidential Chat client; its tokens carry Chat roles.
       aidial.identityProviders.keycloak.offlineClient.clientId: dial-chat
       aidial.identityProviders.keycloak.offlineClient.clientSecret: ${AUTH_KEYCLOAK_SECRET:-keycloak_secret}
@@ -56,13 +54,3 @@ services:
       # Core fetches the Quick Apps schema at startup.
       quickapps-backend:
         condition: service_healthy
-
-  core-config-apply:
-    environment:
-      # The simple setup's file first, then the advanced additions
-      # (Evaluation credentials and Scheduler). Each file is applied once,
-      # so upgrading a running simple setup applies only the advanced files.
-      CONFIG_FILES: >-
-        core/1-dial-simple-setup/config.json
-        core/2-dial-advanced-setup/config.json
-        core/2-dial-advanced-setup/scheduler.json

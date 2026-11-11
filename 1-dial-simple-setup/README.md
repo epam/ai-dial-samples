@@ -128,7 +128,15 @@ All addresses work only on your computer (`127.0.0.1`).
 
 A *deployment ID* is the name that Chat and the API use for a model or
 application. All of them are defined in
-[`../core/1-dial-simple-setup/config.json`](../core/1-dial-simple-setup/config.json).
+[`../core/config.json`](../core/config.json), which this setup copies into
+Core on its first start.
+
+That file also has the entities that only the
+[advanced setup](../2-dial-advanced-setup/README.md) uses, so that upgrading
+needs no extra step: the API key of Evaluation, and the **DIAL Scheduler**
+application from [`../core/scheduler.json`](../core/scheduler.json). DIAL
+Scheduler is listed here too, but it works only in the advanced setup, which
+runs its service.
 
 ## Who can use what
 
@@ -164,9 +172,11 @@ also talks to these providers.
      `AWS_SECRET_ACCESS_KEY` and `AWS_DEFAULT_REGION`.
    - **Google Vertex AI** (`gemini`): in `.env`, set `GCP_PROJECT_ID` and
      `VERTEXAI_REGION`, and save a Google credentials JSON file as
-     `credentials/google.json` in this folder.
+     `credentials/google.json` in this folder. The advanced setup uses this
+     folder's `credentials/` too.
 
-   After changing `.env`, run `docker compose up --wait`.
+   After changing `.env`, run `docker compose up --wait`. In the advanced
+   setup, use its own `.env`.
 2. Make the model visible: in DIAL Admin, add the roles `admin` and `default`
    to the model.
 3. Sign in to Chat as `dial` and select the model.
@@ -178,8 +188,7 @@ Never commit real credentials. Git ignores `.env` and `credentials/`.
 
 ## Call the API
 
-The API key `dial_api_key` comes from
-[`../core/1-dial-simple-setup/config.json`](../core/1-dial-simple-setup/config.json).
+The API key `dial_api_key` comes from [`../core/config.json`](../core/config.json).
 
 List the models and applications that the key can use:
 
@@ -240,7 +249,7 @@ answers, but needs more memory and is slower on a CPU.
 
 ### Apply config.json again
 
-Core reads `../core/1-dial-simple-setup/config.json` only on the first start
+Core reads `../core/config.json` only on the first start
 (see [how this works](../README.md#how-dial-core-gets-its-models-and-applications)).
 To apply your edits to it later:
 
@@ -261,16 +270,13 @@ In this folder:
 | `.env.example` | Optional settings: ports, passwords, models, cloud credentials |
 | `dial_entity_samples/` | Source code of the sample applications and the interceptor |
 | `keycloak/realm-config.json` | Users, passwords and roles. Keycloak reads it only on its first start. |
-| `credentials/` | Optional Google credentials for Vertex AI; ignored by Git |
+| `credentials/` | Optional Google credentials for Vertex AI, for both setups; ignored by Git |
 
 In the repository root, shared with the advanced setup:
 
 | File or folder | What it is |
 | --- | --- |
-| `core/1-dial-simple-setup/config.json` | Models, applications, the interceptor, API keys and roles, copied into Core on the first start |
-| `core/1-dial-simple-setup/admin-key.json` | The admin API key `dial_admin_api_key`. Core reads this file itself. |
-| `core/settings.json`, `core/gflog.xml` | Core's server and log settings |
-| `core-config-apply/` | The service that copies `config.json` into Core |
+| `core/` | Core's configuration: `config.json` with every model, application, interceptor, API key and role, the admin API key, and the `core-config-apply` service. See [core/README.md](../core/README.md). |
 | `core-data/` | Core's storage: chats, files, models, applications, keys and roles |
 | `logs/` | Core's request logs, one file per day |
 
