@@ -47,14 +47,12 @@ class EssayAssistantApplication(ChatCompletion):
         self.model = model
 
     async def chat_completion(self, request: Request, response: Response) -> None:
+        # Call Core with the caller's own key, so the caller's access rules apply.
         client: AsyncDial = AsyncDial(
-            base_url=os.getenv('DIAL_URL', "http://localhost:8080"),
+            base_url=os.getenv("DIAL_URL", "http://localhost:8059"),
             api_key=request.api_key,
             api_version="2025-01-01-preview"
         )
-
-        # print(request.messages[-1])
-        print(request.messages)
 
         with response.create_single_choice() as choice:
             chunks = await client.chat.completions.create(
@@ -83,7 +81,7 @@ class EssayAssistantApplication(ChatCompletion):
 
 app: DIALApp = DIALApp(add_healthcheck=True)
 
-model_name = os.getenv("DIAL_MODEL")
+model_name = os.getenv("DIAL_MODEL", "ollama-qwen2.5")
 
 app.add_chat_completion(deployment_name="essay-assistant-app", impl=EssayAssistantApplication(model_name))
 

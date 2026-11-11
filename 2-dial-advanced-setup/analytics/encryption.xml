@@ -1,0 +1,8 @@
+<clickhouse>
+    <encryption_codecs>
+        <aes_256_gcm_siv>
+            <!-- Keep this key unchanged while retaining the ClickHouse data. -->
+            <key_hex from_env="ANALYTICS_ENCRYPTION_KEY"/>
+        </aes_256_gcm_siv>
+    </encryption_codecs>
+</clickhouse>

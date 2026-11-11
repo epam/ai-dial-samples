@@ -5,9 +5,8 @@ __pycache__/
 .pytest_cache/
 .venv/
 .DS_Store
+1-dial-simple-setup/credentials/
 2-dial-advanced-setup/credentials/
 # DIAL Core's storage and request logs, created on the first start.
 /core-data/
 /logs/
-# Local data left from the old sample_1_quick_start layout. Delete the folder, then this line.
-sample_1_quick_start/

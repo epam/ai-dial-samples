@@ -10,25 +10,25 @@ sources:
 
 sinks:
   analytics:
-    type: http
+    type: azure_blob
     inputs: [core_logs]
-    uri: http://analytics:5000/data
-    method: post
+    connection_string: "DefaultEndpointsProtocol=http;AccountName=dialanalytics;AccountKey=${ANALYTICS_BLOB_KEY};BlobEndpoint=http://dialanalytics.analytics-blob:10000;"
+    container_name: logs
+    blob_prefix: "logs/%Y/%m/%d/"
+    blob_time_format: "%s"
+    compression: gzip
+    acknowledgements:
+      enabled: true
     encoding:
-      codec: json
+      # Core already writes JSON lines; do not wrap them in a Vector event.
+      codec: text
     framing:
-      method: character_delimited
-      character_delimited:
-        delimiter: ","
-    payload_prefix: "["
-    payload_suffix: "]"
+      method: newline_delimited
     batch:
       max_bytes: 1049000
       timeout_secs: 5
     request:
       timeout_secs: 300
-    healthcheck:
-      enabled: false
     buffer:
       type: disk
       max_size: 268435488

@@ -5,24 +5,64 @@
 # here would start from that folder, not from this one.
 services:
 
+  chat:
+    environment:
+      ALLOWED_IFRAME_ORIGINS: http://localhost:${QUICKAPPS_FRONTEND_PORT:-8057}
+      SCHEDULED_TASKS_ENABLED: "true"
+      SCHEDULER_APP_ID: public/dial_scheduler
+      SCHEDULER_SERVICE_ID: dial-native
+    depends_on:
+      scheduler:
+        condition: service_healthy
+      quickapps-frontend:
+        condition: service_healthy
+
+  # Admin is inherited from the simple setup; these backends are advanced-only.
+  admin-frontend:
+    environment:
+      DIAL_EVAL_API_URL: http://evaluation-backend:8080
+      ANALYTICS_ENABLED: "true"
+      ANALYTICS_USAGE_ENABLED: "true"
+      ANALYTICS_SESSIONS_ENABLED: "true"
+      DIAL_ANALYTICS_API_URL: http://analytics:5000
+      DIAL_ANALYTICS_RUNNER_API_URL: http://analytics-enrichment-runner:5000
+      DIAL_QUERY_ASSISTANT_DEPLOYMENT: ${DIAL_QUERY_ASSISTANT_DEPLOYMENT:-}
+    depends_on:
+      evaluation-backend:
+        condition: service_healthy
+      analytics-init:
+        condition: service_completed_successfully
+      analytics-enrichment-runner:
+        condition: service_healthy
+
   core:
     environment:
-      # Core merges these files from ../core in order: the simple setup's files
-      # first, then the advanced additions (applications, interceptor, more
-      # models and the roles that control who sees what).
       aidial.config.files: >-
-        ["/opt/config/1-dial-simple-setup/config.json",
-        "/opt/config/1-dial-simple-setup/quick-apps-schemas.json",
-        "/opt/config/2-dial-advanced-setup/config.json"]
-    # Lets Core reach DIAL entities that you run on your computer outside Docker.
-    extra_hosts: ["host.docker.internal:host-gateway"]
+        ["/opt/config/1-dial-simple-setup/admin-key.json",
+        "/opt/config/2-dial-advanced-setup/quick-apps-schemas.json"]
+      # Reuse the existing confidential Chat client; its tokens carry Chat roles.
+      aidial.identityProviders.keycloak.offlineClient.clientId: dial-chat
+      aidial.identityProviders.keycloak.offlineClient.clientSecret: ${AUTH_KEYCLOAK_SECRET:-keycloak_secret}
+      aidial.identityProviders.keycloak.offlineClient.authorizationEndpoint: http://keycloak.localhost:${KC_PORT:-8058}/realms/dial/protocol/openid-connect/auth
+      aidial.identityProviders.keycloak.offlineClient.tokenEndpoint: http://keycloak:${KC_PORT:-8058}/realms/dial/protocol/openid-connect/token
+      aidial.identityProviders.keycloak.offlineClient.redirectUri: http://localhost:${DIAL_CHAT_PORT:-8055}/auth/toolset-signin
+      # Sessions and Evaluation need client/session metadata from request headers.
+      aidial.analytics.collectHeaders: "true"
+      aidial.analytics.headersAllowlist: >-
+        ["user-agent", "baggage", "x-dial-cli-version", "x-dial-client-channel-id",
+        "x-session-id", "thread-id", "anthropic-client-platform",
+        "x-claude-code-agent-id", "x-claude-code-session-id"]
+    depends_on:
+      # Core fetches the Quick Apps schema at startup.
+      quickapps-backend:
+        condition: service_healthy
 
-  ollama-init:
+  core-config-apply:
     environment:
-      # The simple setup's models, plus LLaVA for pictures in AI Agent Sample.
-      # An empty OLLAMA_VISION_MODEL skips the LLaVA download.
-      MODELS_TO_PULL: >-
-        ${OLLAMA_CHAT_MODEL:-qwen2.5:0.5b}
-        ${OLLAMA_SECOND_CHAT_MODEL:-llama3.2:1b}
-        ${OLLAMA_EMBEDDING_MODEL:-all-minilm}
-        ${OLLAMA_VISION_MODEL-llava}
+      # The simple setup's file first, then the advanced additions
+      # (Evaluation credentials and Scheduler). Each file is applied once,
+      # so upgrading a running simple setup applies only the advanced files.
+      CONFIG_FILES: >-
+        core/1-dial-simple-setup/config.json
+        core/2-dial-advanced-setup/config.json
+        core/2-dial-advanced-setup/scheduler.json

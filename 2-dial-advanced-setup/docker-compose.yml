@@ -1,13 +1,12 @@
-# DIAL advanced setup: the simple setup plus Admin, Evaluation, Analytics and
-# two sample DIAL entities built from ./dial_entity_samples.
+# DIAL advanced setup: the simple setup plus Quick Apps, Scheduler, Evaluation and Analytics.
 # Start:  docker compose up --wait      Stop:  docker compose down
 #
 # The project name matches ../1-dial-simple-setup, so starting this setup
 # upgrades a running simple setup in place. Core's configuration, storage and
 # logs are in ../core, ../core-data and ../logs.
 #
-# The Admin, Evaluation and Analytics images are published for linux/amd64 only,
-# like the simple setup's Chat and Quick Apps. On an Apple Silicon Mac, set
+# The Evaluation images are published for linux/amd64 only,
+# along with Chat, Admin, Quick Apps and Scheduler. On an Apple Silicon Mac, set
 # DIAL_PLATFORM=linux/amd64 in .env.
 name: dial
 
@@ -19,87 +18,132 @@ include:
 
 services:
 
-  # ---------------------------------------------------------------------------
-  # DIAL entity samples: your own code, built from ./dial_entity_samples
-  # ---------------------------------------------------------------------------
-
-  # Application "AI Agent Sample": web search and picture analysis, http://localhost:8065
-  agent-app-sample:
-    build: ./dial_entity_samples/agent_app_sample
-    restart: unless-stopped
-    ports: ["127.0.0.1:${AGENT_APP_PORT:-8065}:5025"]
-    environment:
-      DIAL_URL: http://core:8080
-      AGENT_MODEL: ${AGENT_MODEL:-ollama-qwen2.5}
-      VISION_MODEL: ${VISION_MODEL:-ollama-llava-vision}
-      MODEL_TIMEOUT_SECONDS: ${MODEL_TIMEOUT_SECONDS:-300}
-    healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5025/health', timeout=3)"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  # Interceptor "pre-post-interceptor": adds stages before and after a model's answer.
-  # Core calls it for the "qwen2.5 + pre/post interceptor" model; it has no published port.
-  pre-post-interceptor:
-    build: ./dial_entity_samples/pre_post_interceptor_sample
-    restart: unless-stopped
-    environment:
-      DIAL_URL: http://core:8080
-    healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5041/health', timeout=3)"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  # ---------------------------------------------------------------------------
-  # DIAL Admin: manage models, applications and evaluations
-  # ---------------------------------------------------------------------------
-
-  # Admin UI talking directly to Core (no Admin Backend), http://localhost:8056
-  admin-frontend:
-    image: epam/ai-dial-admin-frontend:${DIAL_ADMIN_FRONTEND_VERSION:-0.22.1}
+  # Runs Quick Apps. Core fetches the Quick Apps schema from it
+  # (../core/2-dial-advanced-setup/quick-apps-schemas.json).
+  quickapps-backend:
+    image: epam/ai-dial-quickapps-backend:${DIAL_QUICKAPPS_BACKEND_VERSION:-0.13.1}
     platform: ${DIAL_PLATFORM:-}
     restart: unless-stopped
-    ports: ["127.0.0.1:${DIAL_ADMIN_FRONTEND_PORT:-8056}:3000"]
     environment:
-      # Leave DIAL_ADMIN_API_URL unset: use the Core-direct UI.
-      DIAL_CORE_API_URL: http://core:8080
-      DIAL_EVAL_API_URL: http://evaluation-backend:8080
-      DIAL_LINK: http://localhost:${DIAL_CHAT_PORT:-8055}
-      # The Analytics section appears only when its separately deployed
-      # data-access service URL is configured.
-      ANALYTICS_ENABLED: "${DIAL_ANALYTICS_API_URL:+true}"
-      ANALYTICS_USAGE_ENABLED: "true"
-      ANALYTICS_SESSIONS_ENABLED: "true"
-      DIAL_ANALYTICS_API_URL: ${DIAL_ANALYTICS_API_URL:-}
-      DIAL_ANALYTICS_RUNNER_API_URL: ${DIAL_ANALYTICS_RUNNER_API_URL:-}
-      DIAL_QUERY_ASSISTANT_DEPLOYMENT: ${DIAL_QUERY_ASSISTANT_DEPLOYMENT:-}
-      NEXTAUTH_URL: http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-local-development-nextauth-secret-change-me}
-      NEXTAUTH_COOKIE_PREFIX: admin
+      DIAL_URL: http://core:8080
+      DEFAULT_ORCHESTRATOR_DEPLOYMENT_ID: ${DEFAULT_DEPLOYMENT:-ollama-qwen2.5}
+      APP_SCHEMA_ID: https://mydial.epam.com/custom_application_schemas/quickapps2
+      LOG_LEVEL: INFO
+      QUICKAPP_LOG_LEVEL: INFO
+      ENABLE_PREVIEW_FEATURES: "false"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # Quick Apps editor, opened from an application's settings in Chat, http://localhost:8057
+  quickapps-frontend:
+    image: epam/ai-dial-quickapps-frontend:${DIAL_QUICKAPPS_FRONTEND_VERSION:-0.3.0}
+    platform: ${DIAL_PLATFORM:-}
+    restart: unless-stopped
+    ports: ["127.0.0.1:${QUICKAPPS_FRONTEND_PORT:-8057}:5000"]
+    environment:
+      PORT: "5000"
+      API_PREFIX: api
+      DIAL_CORE_URL: http://core:8080
+      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      AUTH_CALLBACK_BASE_URL: http://localhost:${QUICKAPPS_FRONTEND_PORT:-8057}
+      CORS_ORIGIN: http://localhost:${QUICKAPPS_FRONTEND_PORT:-8057}
+      AUTH_COOKIE_SECURE: "false"
+      # Separate cookies from Chat and Admin, which share the localhost site.
+      AUTH_SESSION_COOKIE_NAME: quickapps.sess
+      AUTH_TRANSACTION_COOKIE_NAME: quickapps.tx
       AUTH_KEYCLOAK_HOST: http://keycloak.localhost:${KC_PORT:-8058}/realms/dial
-      AUTH_KEYCLOAK_CLIENT_ID: dial-admin-console
+      AUTH_KEYCLOAK_CLIENT_ID: dial-quickapps
       AUTH_KEYCLOAK_SECRET: ${AUTH_KEYCLOAK_SECRET:-keycloak_secret}
-      AUTH_KEYCLOAK_ADMIN_ROLE_NAMES: ConfigAdmin,admin
       AUTH_KEYCLOAK_DIAL_ROLES_FIELD: roles
+      DEFAULT_DEPLOYMENT: ${DEFAULT_DEPLOYMENT:-ollama-qwen2.5}
       THEMES_CONFIG_URL: http://themes:8080
-      # These menus need the Admin Backend, which is not deployed.
-      DISABLE_MENU_ITEMS: entities builders accessmanagement audit
-    extra_hosts: ["host.docker.internal:host-gateway"]
+      ALLOWED_IFRAME_ORIGINS: http://localhost:${DIAL_CHAT_PORT:-8055},http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}
+      # Code interpreter, web fetch and preview attachments are not deployed here.
+      CUSTOM_CLIENT_VARIABLES: >-
+        {"allowedOrigin":["http://localhost:${DIAL_CHAT_PORT:-8055}","http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}"],
+        "dialChatHost":"http://localhost:${DIAL_CHAT_PORT:-8055}",
+        "dialAdminHost":"http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}",
+        "codeInterpreterEnabled":false,"webFetchEnabled":false,"addAttachmentEnabled":false}
     depends_on:
       core:
         condition: service_started
       themes:
         condition: service_started
-      evaluation-backend:
-        condition: service_healthy
     healthcheck:
-      test: [CMD, node, -e, "fetch('http://localhost:3000/api/health', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 5s
+      test: [CMD, node, -e, "fetch('http://localhost:5000/api/health', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
       timeout: 5s
       retries: 20
       start_period: 30s
+
+  # Scheduler: REST/MCP API and a single worker, sharing a PostgreSQL job store.
+  scheduler:
+    image: epam/ai-dial-scheduler:${DIAL_SCHEDULER_VERSION:-development}
+    platform: ${DIAL_PLATFORM:-}
+    restart: unless-stopped
+    ports: ["127.0.0.1:${SCHEDULER_PORT:-8067}:5000"]
+    environment: &scheduler-environment
+      SERVICE: api
+      RUN_MIGRATIONS_ON_START: "true"
+      ENV: prod
+      DIAL_URL: http://core:8080
+      # Dedicated service identity, registered in ../core/2-dial-advanced-setup/scheduler.json.
+      DIAL_API_KEY: dial_scheduler_api_key
+      SCHEDULER_APP_ID: public/dial_scheduler
+      DB_AUTH_MODE: password
+      DB_HOST: scheduler-postgres
+      DB_PORT: "5432"
+      DB_NAME: scheduler
+      DB_USER: scheduler
+      DB_PASSWORD: ${SCHEDULER_POSTGRES_PASSWORD:-local-scheduler-password}
+    depends_on:
+      scheduler-postgres:
+        condition: service_healthy
+      core-config-apply:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5000/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  scheduler-worker:
+    image: epam/ai-dial-scheduler:${DIAL_SCHEDULER_VERSION:-development}
+    platform: ${DIAL_PLATFORM:-}
+    restart: unless-stopped
+    environment:
+      <<: *scheduler-environment
+      SERVICE: worker
+      RUN_MIGRATIONS_ON_START: "false"
+    depends_on:
+      # The API completes migrations before becoming healthy.
+      scheduler:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import pathlib, time; p = pathlib.Path('/tmp/heartbeat'); assert pathlib.Path('/tmp/ready').exists() and p.exists() and time.time() - p.stat().st_mtime < 180"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  scheduler-postgres:
+    image: postgres:17.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scheduler
+      POSTGRES_USER: scheduler
+      POSTGRES_PASSWORD: ${SCHEDULER_POSTGRES_PASSWORD:-local-scheduler-password}
+    volumes: ["scheduler-postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD, pg_isready, -U, scheduler, -d, scheduler]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   # ---------------------------------------------------------------------------
   # Evaluation: test suites and metrics, managed from Admin -> Evaluation
@@ -190,113 +234,183 @@ services:
       retries: 20
 
   # ---------------------------------------------------------------------------
-  # Analytics: Core request logs -> Vector -> Realtime Analytics -> InfluxDB
+  # Analytics: Core logs -> Vector -> Azurite -> ADAS -> ClickHouse
   # ---------------------------------------------------------------------------
 
-  # Vector: reads Core's request logs and sends them to analytics
+  # A new checkpoint volume also archives logs already read by the old Influx sink.
   logger:
     image: timberio/vector:0.60.0-debian
-    restart: unless-stopped
-    volumes:
-      - vector-data:/var/lib/vector
-      - ./analytics/vector.yaml:/etc/vector/vector.yaml:ro
-      - ../logs:/app/log:ro
-    depends_on:
-      analytics:
-        condition: service_healthy
-      core:
-        condition: service_started
-
-  # DIAL Realtime Analytics: turns request logs into usage metrics
-  analytics:
-    image: epam/ai-dial-analytics-realtime:${DIAL_ANALYTICS_VERSION:-0.29.1}
     platform: ${DIAL_PLATFORM:-}
     restart: unless-stopped
     environment:
-      INFLUX_URL: http://influxdb:8086
-      INFLUX_ORG: ${INFLUXDB_ORG:-dial}
-      INFLUX_BUCKET: ${INFLUXDB_BUCKET:-analytics-realtime}
-      INFLUX_API_TOKEN: ${INFLUXDB_ADMIN_TOKEN:-local-development-influx-token}
-      # Skip the optional Hugging Face topic model downloads.
-      TOPIC_MODEL: ""
-      TOPIC_EMBEDDINGS_MODEL: ""
-      LOG_LEVEL: INFO
+      VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION: "true"
+      ANALYTICS_BLOB_KEY: ${ANALYTICS_BLOB_KEY:-bG9jYWwtYW5hbHl0aWNzLWJsb2Itc3RvcmFnZS1rZXk=}
+    volumes:
+      - vector-analytics-data:/var/lib/vector
+      - ./analytics/vector.yaml:/etc/vector/vector.yaml:ro
+      - ../logs:/app/log:ro
     depends_on:
-      influxdb:
+      analytics-init:
+        condition: service_completed_successfully
+      core:
+        condition: service_started
+
+  # Analytics Data Access Service (ADAS), http://localhost:8062/swagger-ui.html
+  analytics:
+    image: epam/ai-dial-analytics:${DIAL_ANALYTICS_VERSION:-0.23.0-rc.0}
+    restart: unless-stopped
+    ports: ["127.0.0.1:${DIAL_ANALYTICS_PORT:-8062}:5000"]
+    environment:
+      CLICKHOUSE_HOST: analytics-clickhouse
+      CLICKHOUSE_DATABASE: analytics
+      CLICKHOUSE_USER: analytics
+      CLICKHOUSE_PASSWORD: ${ANALYTICS_CLICKHOUSE_PASSWORD:-local-clickhouse-password}
+      CLICKHOUSE_WRITER_USER: analytics
+      CLICKHOUSE_WRITER_PASSWORD: ${ANALYTICS_CLICKHOUSE_PASSWORD:-local-clickhouse-password}
+      POSTGRES_HOST: analytics-postgres
+      POSTGRES_DATABASE: analytics
+      POSTGRES_DATASOURCE_USERNAME: analytics
+      POSTGRES_DATASOURCE_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-local-analytics-password}
+      BLOB_PROVIDER: azureblob
+      # Azurite supports SharedKey, while jclouds defaults to SharedKeyLite.
+      SPRING_APPLICATION_JSON: '{"blob":{"overrides":{"jclouds.azureblob.auth":"azureSharedKey"}}}'
+      BLOB_ENDPOINT: http://dialanalytics.analytics-blob:10000
+      BLOB_IDENTITY: dialanalytics
+      BLOB_CREDENTIAL: ${ANALYTICS_BLOB_KEY:-bG9jYWwtYW5hbHl0aWNzLWJsb2Itc3RvcmFnZS1rZXk=}
+      BLOB_BUCKET: logs
+      # Avoid '=' in blob keys: jclouds SharedKey query signing splits on it.
+      SYNC_FILE_NAME_PREFIX_PATTERN: ""
+      POLL_CRON: "*/10 * * * * *"
+      ENRICHMENT_CURSOR_SECRET: ${ANALYTICS_CURSOR_SECRET:-local-development-analytics-cursor-secret}
+      SECURITY_MODE: oidc
+      PROVIDERS_KEYCLOAK_ISSUER: http://keycloak.localhost:${KC_PORT:-8058}/realms/dial
+      PROVIDERS_KEYCLOAK_JWKSETURI: http://keycloak:${KC_PORT:-8058}/realms/dial/protocol/openid-connect/certs
+      PROVIDERS_KEYCLOAK_AUDIENCES: dial-admin-console
+      PROVIDERS_KEYCLOAK_ROLECLAIMS: roles
+      PROVIDERS_KEYCLOAK_PRINCIPALCLAIM: sub
+      API_KEY_ENABLED: "true"
+      API_KEY_CORE_URL: http://core:8080
+      API_KEY_ROLES_MAPPING: '{"admin":["FULL_ADMIN"]}'
+    depends_on:
+      analytics-clickhouse:
+        condition: service_healthy
+      analytics-postgres:
+        condition: service_healthy
+      analytics-blob:
+        condition: service_healthy
+      core:
         condition: service_healthy
     healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=3)"]
+      test: [CMD, wget, -q, --spider, "http://localhost:5000/actuator/health/readiness"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 60s
 
-  # InfluxDB: stores the usage metrics, http://localhost:8062
-  influxdb:
-    image: influxdb:2.7
+  analytics-enrichment-runner:
+    image: epam/ai-dial-analytics-enrichment-runner:${DIAL_ANALYTICS_RUNNER_VERSION:-0.23.0-rc.0}
     restart: unless-stopped
-    ports: ["127.0.0.1:${INFLUXDB_PORT:-8062}:8086"]
+    ports: ["127.0.0.1:${DIAL_ANALYTICS_RUNNER_PORT:-8066}:5000"]
     environment:
-      DOCKER_INFLUXDB_INIT_MODE: setup
-      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USERNAME:-admin}
-      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-influxdb-password}
-      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-dial}
-      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-analytics-realtime}
-      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_ADMIN_TOKEN:-local-development-influx-token}
-    volumes:
-      - influxdb-data:/var/lib/influxdb2
-      - influxdb-config:/etc/influxdb2
+      POSTGRES_HOST: analytics-postgres
+      POSTGRES_DATABASE: analytics_runner
+      POSTGRES_DATASOURCE_USERNAME: analytics
+      POSTGRES_DATASOURCE_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-local-analytics-password}
+      ADAS_BASE_URL: http://analytics:5000
+      # Local sample: reuse Core's file-configured admin key for service calls.
+      ADAS_API_KEY: ${DIAL_ANALYTICS_API_KEY:-dial_admin_api_key}
+      DIAL_BASE_URL: http://core:8080
+      DIAL_API_KEY: ${DIAL_ANALYTICS_API_KEY:-dial_admin_api_key}
+      SECURITY_MODE: oidc
+      PROVIDERS_KEYCLOAK_ISSUER: http://keycloak.localhost:${KC_PORT:-8058}/realms/dial
+      PROVIDERS_KEYCLOAK_JWKSETURI: http://keycloak:${KC_PORT:-8058}/realms/dial/protocol/openid-connect/certs
+      PROVIDERS_KEYCLOAK_AUDIENCES: dial-admin-console
+      PROVIDERS_KEYCLOAK_ROLECLAIMS: roles
+      PROVIDERS_KEYCLOAK_PRINCIPALCLAIM: sub
+    depends_on:
+      analytics-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: [CMD, influx, ping, --host, "http://localhost:8086"]
+      test: [CMD, wget, -q, --spider, "http://localhost:5000/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  # Create the blob container and import/enable the recommended catalog once.
+  analytics-init:
+    image: python:3.12-alpine
+    restart: on-failure
+    command: [python, /config/init.py]
+    environment:
+      ANALYTICS_BLOB_KEY: ${ANALYTICS_BLOB_KEY:-bG9jYWwtYW5hbHl0aWNzLWJsb2Itc3RvcmFnZS1rZXk=}
+      DIAL_ANALYTICS_API_KEY: ${DIAL_ANALYTICS_API_KEY:-dial_admin_api_key}
+    volumes:
+      - ./analytics:/config:ro
+      - analytics-init-data:/state
+    depends_on:
+      analytics:
+        condition: service_healthy
+
+  analytics-clickhouse:
+    image: clickhouse/clickhouse-server:26.8
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: analytics
+      CLICKHOUSE_USER: analytics
+      CLICKHOUSE_PASSWORD: ${ANALYTICS_CLICKHOUSE_PASSWORD:-local-clickhouse-password}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      ANALYTICS_ENCRYPTION_KEY: ${ANALYTICS_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+    ulimits:
+      nofile: {soft: 262144, hard: 262144}
+    volumes:
+      - analytics-clickhouse-data:/var/lib/clickhouse
+      - ./analytics/encryption.xml:/etc/clickhouse-server/config.d/encryption.xml:ro
+    healthcheck:
+      test: [CMD, wget, -q, --spider, "http://localhost:8123/ping"]
       interval: 5s
       timeout: 3s
       retries: 30
 
-  # ---------------------------------------------------------------------------
-  # Cloud model adapters. Their models stay hidden until you add credentials,
-  # see README.md.
-  # ---------------------------------------------------------------------------
-
-  adapter-dial-bedrock:
-    image: epam/ai-dial-adapter-bedrock:${DIAL_BEDROCK_ADAPTER_VERSION:-0.45.0}
+  analytics-postgres:
+    image: postgres:17.5
     restart: unless-stopped
     environment:
-      DIAL_URL: http://core:8080
-      LOG_LEVEL: INFO
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
-      AWS_ASSUME_ROLE_ARN: ${AWS_ASSUME_ROLE_ARN:-}
+      POSTGRES_DB: analytics
+      POSTGRES_USER: analytics
+      POSTGRES_PASSWORD: ${ANALYTICS_POSTGRES_PASSWORD:-local-analytics-password}
+    volumes:
+      - analytics-postgres-data:/var/lib/postgresql/data
+      - ./analytics/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      # The image's own check calls "localhost", which resolves to IPv6 in the container.
-      test: [CMD-SHELL, "wget -q --spider http://127.0.0.1:5000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
+      test: [CMD-SHELL, "pg_isready -U analytics -d analytics"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
-  adapter-dial-vertexai:
-    image: epam/ai-dial-adapter-vertexai:${DIAL_VERTEXAI_ADAPTER_VERSION:-0.41.1}
+  # Local Azure Blob Storage emulator; no Azure account or exposed port needed.
+  analytics-blob:
+    image: mcr.microsoft.com/azure-storage/azurite:3.35.0
     restart: unless-stopped
+    command: azurite-blob --blobHost 0.0.0.0 --location /data --silent --skipApiVersionCheck
     environment:
-      DIAL_URL: http://core:8080
-      LOG_LEVEL: INFO
-      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
-      DEFAULT_REGION: ${VERTEXAI_REGION:-us-central1}
-      GOOGLE_APPLICATION_CREDENTIALS: /opt/credentials/google.json
-    # Save your Google credentials as ./credentials/google.json.
-    volumes: ["./credentials:/opt/credentials:ro"]
+      AZURITE_ACCOUNTS: dialanalytics:${ANALYTICS_BLOB_KEY:-bG9jYWwtYW5hbHl0aWNzLWJsb2Itc3RvcmFnZS1rZXk=}
+    networks:
+      default:
+        aliases: [dialanalytics.analytics-blob]
+    volumes:
+      - analytics-blob-data:/data
     healthcheck:
-      # The image's own check calls "localhost", which resolves to IPv6 in the container.
-      test: [CMD-SHELL, "wget -q --spider http://127.0.0.1:5000/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
+      test: [CMD, node, -e, "require('net').connect(10000, '127.0.0.1').on('connect', function() {this.end(); process.exit(0)}).on('error', () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
 volumes:
-  vector-data:
-  influxdb-data:
-  influxdb-config:
+  scheduler-postgres-data:
+  vector-analytics-data:
+  analytics-clickhouse-data:
+  analytics-postgres-data:
+  analytics-blob-data:
+  analytics-init-data:
   evaluation-postgres-data:

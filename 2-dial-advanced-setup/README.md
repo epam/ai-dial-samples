@@ -2,71 +2,59 @@
 
 Everything from [1-dial-simple-setup](../1-dial-simple-setup/README.md), plus:
 
-- **DIAL Admin**: manage models, applications and evaluations in a web UI;
-- **Evaluation**: test models with datasets and metrics;
-- **Analytics**: collect usage data from every request;
-- **Two DIAL entities written in Python**, in [dial_entity_samples](dial_entity_samples/README.md):
-  an AI agent application and an interceptor;
-- **Access by role**: in Chat, the user `user` sees only the simple setup's
-  models and applications, the user `dial` sees everything (see [Roles](#roles)).
+- **Quick Apps**: build assistants in Chat without writing code;
+- **Scheduler**: run applications on a schedule;
+- **Evaluation**: test models and applications against datasets, with metrics;
+- **Analytics**: usage, sessions and SQL queries in DIAL Admin.
+
+The models, sample applications, users and roles are the same as in the simple
+setup.
 
 ## Start
 
-Give Docker at least **16 GB of memory** (Docker Desktop: **Settings → Resources**),
-then run from this folder:
+Give Docker Desktop at least 16 GB of memory (**Settings → Resources**), then
+run in this folder:
 
 ```sh
 docker compose up --wait
 ```
 
-The command finishes when DIAL is ready. The first start downloads about 12 GB
-more than the simple setup, including the LLaVA picture model, so it takes a
-while. To watch the model downloads, run `docker compose logs -f ollama-init`
-in a second terminal.
+The command finishes when DIAL is ready. The first start downloads about 7 GB
+more than the simple setup.
 
 If the simple setup is running, you do not need to stop it: this command
 upgrades it in place and keeps its users, chats and models.
 
-On a Mac with Apple Silicon (M1 or newer), first run
-`echo DIAL_PLATFORM=linux/amd64 >> .env` in this folder, even if you did it
-for the simple setup: each folder has its own `.env`. Chat, Admin, Quick Apps,
-Evaluation and Analytics have no ARM build yet, so Docker runs them through
-emulation.
+> [!NOTE]
+> **Apple Silicon Mac (M1 or newer)?** Before the first start, run
+> `echo DIAL_PLATFORM=linux/amd64 >> .env` in this folder, even if you did it
+> for the simple setup: each folder has its own `.env`.
 
 ## Open
 
-| What | Address | Sign in with |
+| What | Address | Sign in as |
 | --- | --- | --- |
-| Chat | <http://localhost:8055> | `user` / `dial` for the simple setup's models, or `dial` / `dial` for everything and Chat admin |
+| Chat | <http://localhost:8055> | `dial` / `dial` for everything, or `user` / `dial` |
 | DIAL Admin | <http://localhost:8056> | `dial-admin` / `dial` |
-| Quick Apps editor | Opens from an application's settings in Chat or Admin | Signs you in automatically |
-| Keycloak admin console | <http://keycloak.localhost:8058/admin> | `admin` / `admin-password` |
+| Quick Apps editor | Opens from a Quick App's settings in Chat | Signs you in automatically |
 | Core API | <http://localhost:8059> | Header `api-key: dial_api_key` |
-| Evaluation Backend API | <http://localhost:8060/swagger-ui.html> | A Keycloak token of `dial-admin` |
-| Evaluation Metrics API | <http://localhost:8061/docs> | Nothing |
-| InfluxDB | <http://localhost:8062> | `admin` / `influxdb-password` |
-| Themes | <http://localhost:8063> | Nothing |
-| Ollama API | <http://localhost:8064> | Nothing |
-| AI Agent Sample | <http://localhost:8065> | Use it through Chat |
+| Keycloak admin console | <http://keycloak.localhost:8058/admin> | `admin` / `admin-password` |
 
-All addresses work only on your computer (`127.0.0.1`).
+The other services have their own API pages; see [Service APIs](#service-apis).
 
 ## Things to try
 
-1. **Chat with the AI agent.** Sign in to Chat as `dial`, open the catalog and select
-   **AI Agent Sample**. Ask it to search the web, or attach a picture and ask
-   what is in it. The code is in
-   [dial_entity_samples/agent_app_sample](dial_entity_samples/agent_app_sample/README.md).
-2. **See an interceptor at work.** Select **qwen2.5 + pre/post interceptor**
-   and send a message. The answer shows a *Greeting* and a *Goodbye* step that
-   the interceptor added. The code is in
-   [dial_entity_samples/pre_post_interceptor_sample](dial_entity_samples/pre_post_interceptor_sample/README.md).
-3. **Look at DIAL as an administrator.** Sign in to Admin as `dial-admin` and
-   open **AI Gateway** to see every model, application and interceptor.
-4. **Evaluate a model.** In Admin, open **Evaluation** and create a dataset,
-   a test suite and a run.
-5. **Compare the two users.** Sign in to Chat as `user`, then as `dial`, and
-   compare the model lists. See [Roles](#roles).
+1. **Build an assistant without code.** In Chat, create a Quick App, open its
+   settings and select a model that supports tools, such as `ollama-qwen2.5`.
+2. **Evaluate a model.** In DIAL Admin, open **Evaluation** and create a
+   dataset, a test suite and a run.
+3. **See your usage.** Send a few messages in Chat, then open **Analytics** in
+   DIAL Admin. New requests appear within about 15 seconds, and sessions within
+   15 minutes.
+4. **Schedule a task.** Open **Scheduled tasks** in Chat's sidebar. It needs
+   a one-time setup first: see [Scheduler](#scheduler).
+5. **Everything from the simple setup**: its
+   [things to try](../1-dial-simple-setup/README.md#things-to-try) work here too.
 
 ## Stop
 
@@ -75,7 +63,7 @@ docker compose down
 ```
 
 Always stop from the folder you started from. Your data is kept for the next
-start. To delete it too and start from scratch, run `docker compose down -v`,
+start. To delete everything and start from scratch, run `docker compose down -v`,
 then delete the `core-data` and `logs` folders in the repository root.
 
 To go back to the simple setup, run `docker compose down` here, then
@@ -85,138 +73,137 @@ To go back to the simple setup, run `docker compose down` here, then
 
 ```mermaid
 flowchart LR
-    chat{DIAL Chat}
-    admin{DIAL Admin}
+    chat[DIAL Chat]
+    admin[DIAL Admin]
     editor[Quick Apps editor]
     core{DIAL Core}
-    keycloak[Keycloak]
-    themes[DIAL Themes]
-    redis[(Redis)]
-    openai[OpenAI adapter]
-    ollama[Ollama]
-    agent[AI Agent Sample]
-    interceptor[Pre/post interceptor]
+    simple[Simple setup:<br/>models, samples,<br/>Keycloak, ...]
     quickapps[Quick Apps Backend]
-    vector((Vector))
-    analytics[Realtime Analytics]
-    influx[(InfluxDB)]
-    evaluation[Evaluation Backend]
-    metrics[Evaluation Metrics]
-    postgres[(PostgreSQL)]
+    scheduler[Scheduler]
+    evaluation[Evaluation]
+    analytics[Analytics]
 
-    subgraph cloud[Cloud adapters: need your credentials]
-        bedrock[Bedrock adapter]
-        vertex[Vertex AI adapter]
-    end
-
-    chat -->|User requests| core
-    admin -->|Manage configuration| core
-    chat & admin -->|Open editor| editor
-    editor -->|Manage applications| core
-    chat & admin & editor -->|Sign in| keycloak
-    chat & admin & editor -->|Load themes| themes
-    core -->|Validate tokens| keycloak
-    core <-->|Cache| redis
-
-    core -->|Model requests| openai
-    openai -->|Inference| ollama
-    core -->|Application requests| agent
-    agent -->|Model calls| core
-    core -->|Intercepted requests| interceptor
-    interceptor -->|Continue to the model| core
+    chat -->|Messages, scheduled tasks| core
+    chat & admin -->|Open| editor
+    editor -->|Save Quick Apps| core
+    admin -->|Manage| core
+    admin -->|Datasets, runs| evaluation
+    admin -->|Usage, sessions, queries| analytics
+    core --> simple
     core -->|Run Quick Apps| quickapps
-    quickapps -->|Model calls| core
-    core -.->|Model requests| bedrock
-    core -.->|Model requests| vertex
-
-    core -->|Request logs| vector
-    vector -->|Send logs| analytics
-    analytics -->|Write metrics| influx
-    admin -->|Manage and run evaluations| evaluation
+    core -->|Schedule requests| scheduler
+    scheduler -->|Run tasks| core
     evaluation -->|Test requests| core
-    evaluation -->|Calculate metrics| metrics
-    evaluation -->|Store results| postgres
-    metrics -->|LLM and embedding calls| core
-
-    classDef simple fill:#dacdfc,stroke:#333,color:#222
-    classDef sample fill:#bff0c7,stroke:#333,color:#222
-    classDef cloudService fill:#fff4d6,stroke:#777,stroke-dasharray:5 5,color:#222
-    class chat,editor,core,keycloak,themes,redis,openai,ollama,quickapps simple
-    class agent,interceptor sample
-    class bedrock,vertex cloudService
+    core -.->|Request logs| analytics
 ```
 
-Purple services come from the simple setup. Green ones are the DIAL entity
-samples built from this folder. The yellow cloud adapters run, but their models
-stay hidden until you add your cloud credentials.
+| Group | Services added by this setup | What they do |
+| --- | --- | --- |
+| Quick Apps | `quickapps-backend`, `quickapps-frontend` | Run Quick Apps; the editor at <http://localhost:8057> |
+| Scheduler | `scheduler`, `scheduler-worker`, `scheduler-postgres` | Accept schedules, run them on time, and keep them in PostgreSQL |
+| Evaluation | `evaluation-backend`, `evaluation-metrics`, `evaluation-postgres` | Run test suites, calculate metrics, and keep the results |
+| Analytics | `logger`, `analytics-blob`, `analytics`, `analytics-clickhouse`, `analytics-postgres`, `analytics-enrichment-runner`, `analytics-init` | Collect Core's request logs and make them searchable |
 
-| Group | Services added by this setup |
-| --- | --- |
-| DIAL entity samples | `agent-app-sample`, `pre-post-interceptor` |
-| Admin | `admin-frontend` |
-| Evaluation | `evaluation-backend`, `evaluation-metrics`, `evaluation-postgres` |
-| Analytics | `logger` (Vector), `analytics`, `influxdb` |
-| Cloud adapters | `adapter-dial-bedrock`, `adapter-dial-vertexai` |
+Analytics works like this: Core writes a line to `../logs` for every request.
+Vector (`logger`) uploads the lines to a local Azure Blob Storage emulator
+(`analytics-blob`). The Analytics service (ADAS) loads them into ClickHouse,
+and the Enrichment Runner adds session information on top.
 
 ## How this folder extends the simple setup
 
-This folder does not copy the simple setup. `docker-compose.yml` includes it:
-
-```yaml
-include:
-  - path:
-      - ../1-dial-simple-setup/docker-compose.yml
-      - ./simple-setup-overrides.yml
-```
-
-Docker Compose loads the simple setup's services, then merges
-`simple-setup-overrides.yml` into them. That file is the only place where this
-setup changes a simple-setup service:
+This folder does not copy the simple setup. Its `docker-compose.yml` includes
+it, and `simple-setup-overrides.yml` changes four of its services:
 
 | Service | Change |
 | --- | --- |
-| `core` | Also reads `../core/2-dial-advanced-setup/config.json` |
-| `ollama-init` | Also downloads LLaVA |
+| `chat` | Turns on **Scheduled tasks** and allows the Quick Apps editor |
+| `admin-frontend` | Turns on **Evaluation** and **Analytics** |
+| `core` | Reads the Quick Apps application type, signs users in for Scheduler, and logs a few client headers for Analytics |
+| `core-config-apply` | Also applies the advanced setup's files |
 
-DIAL Core's configuration is in the repository root, in `../core`. Core reads
-these files in this order and merges them:
+`core-config-apply` copies these files into Core's storage on the first start,
+in this order (see
+[how this works](../README.md#how-dial-core-gets-its-models-and-applications)):
 
-1. `../core/1-dial-simple-setup/config.json`: the qwen2.5, llama3.2 and all-minilm
-   models, Essay Assistant, API keys and roles;
-2. `../core/1-dial-simple-setup/quick-apps-schemas.json`: the Quick Apps
-   application type;
-3. `../core/2-dial-advanced-setup/config.json`: the agent application, the
-   interceptor, more models, the Evaluation API key, the `ConfigAdmin` role,
-   and which roles may use each model and application.
+1. `../core/1-dial-simple-setup/config.json`: the simple setup's models,
+   applications, API keys and roles;
+2. `../core/2-dial-advanced-setup/config.json`: the Evaluation API key and the
+   `ConfigAdmin` role;
+3. `../core/2-dial-advanced-setup/scheduler.json`: the Scheduler application and
+   its service key.
 
-Both setups share the project name `dial`, and therefore the same containers,
-network and volumes. They also share Core's storage in `../core-data` and its
-request logs in `../logs`.
+When you upgrade a running simple setup, it applies only the two new files.
 
-## Files
+## Quick Apps
 
-In this folder:
+A Quick App is an assistant that you configure in a form instead of writing
+code: instructions, a model, tools. Quick Apps Backend runs them.
 
-| File or folder | What it is |
+`../core/2-dial-advanced-setup/quick-apps-schemas.json` tells Core about the
+Quick Apps application type, and Core reads the full form from Quick Apps
+Backend when it starts. It contains the editor's address,
+`http://localhost:8057`: if you change `QUICKAPPS_FRONTEND_PORT`, change it there
+too.
+
+Code interpreter, web fetch and file previews are turned off, because their
+services are not part of this setup.
+
+## Scheduler
+
+[DIAL Scheduler](https://github.com/epam/ai-dial-scheduler) runs DIAL
+applications and HTTP requests on a schedule, from **Scheduled tasks** in Chat,
+REST or MCP. A scheduled task runs while you are away, on your behalf, so it
+needs your permission once:
+
+1. Sign in to Chat as `dial` and enable offline access in Chat.
+2. Allow the Scheduler application to use those credentials. As an
+   administrator, run once:
+
+   ```sh
+   curl --fail -X POST \
+     http://localhost:8059/v1/applications/public/dial_scheduler/external-services/dial-native/consent \
+     -H 'api-key: dial_admin_api_key'
+   ```
+
+   This allows it for every user who has turned on offline access.
+
+Without both steps, creating a schedule fails. For the details, see the
+Scheduler's [credential setup](https://github.com/epam/ai-dial-scheduler#per-user-credentials-dial-native-offline-delegation).
+
+| Service | What it does |
 | --- | --- |
-| `docker-compose.yml` | The services this setup adds |
-| `simple-setup-overrides.yml` | The changes to the simple setup's services |
-| `dial_entity_samples/` | Python source code of the agent application and the interceptor |
-| `evaluation/init-db.sql` | Creates the Evaluation results database on PostgreSQL's first start |
-| `analytics/vector.yaml` | Tells Vector where to read Core's logs and where to send them |
-| `.env.example` | Optional settings: ports, passwords, models, cloud credentials, versions |
+| `scheduler` | Accepts schedules from Chat, REST and MCP |
+| `scheduler-worker` | Runs tasks when they are due. Keep only one, so tasks do not run twice. |
+| `scheduler-postgres` | Keeps schedules and run history |
 
-In the repository root, shared with the simple setup:
+Scheduler's REST API is available through Core, at
+`http://localhost:8059/v1/deployments/applications/public/dial_scheduler/route/v1/schedules/`.
+Call it through Core, so that Scheduler knows which user is calling.
 
-| File or folder | What it is |
-| --- | --- |
-| `../core/2-dial-advanced-setup/config.json` | Applications, interceptors, models, API keys and roles that this setup adds to Core |
-| `../core/1-dial-simple-setup/` | The simple setup's models, applications, API keys and Quick Apps type, which this setup keeps |
-| `../core/settings.json`, `../core/gflog.xml` | Core's server and log settings |
-| `../core-data/` | Core's storage: chats, files, resources created in Admin |
-| `../logs/` | Core's request logs, which Vector sends to analytics |
+## Evaluation
 
-Core re-reads the JSON files every 3 seconds, so edits apply without a restart.
+In DIAL Admin, open **Evaluation**: Datasets, Test Suites and Runs.
+
+- The Evaluation services call Core with the API key `dial_evaluation_api_key`
+  from `../core/2-dial-advanced-setup/config.json`.
+- Metrics that need an AI judge use `ollama-qwen2.5`, and embedding-based
+  metrics use `ollama-all-minilm` (`EVALUATION_JUDGE_MODEL` and
+  `EVALUATION_EMBEDDING_MODEL` in `.env`). The small qwen2.5 model is enough to
+  see that everything works; use a stronger judge for meaningful scores.
+  Metrics such as `exact_match` and `regex_match` need no judge.
+
+## Analytics
+
+In DIAL Admin, open **Analytics**: Dashboards, Queries, Sessions, Tables and
+Pipelines.
+
+- On the first start, `analytics-init` imports the recommended tables and
+  pipelines from `analytics/adas-catalog.json`. Later starts keep your changes.
+- Analytics stores the full text of requests and answers: by default for 90
+  days, and usage numbers for a year. Keep that in mind before you send
+  anything private.
+- To let the **Queries** page write SQL for you, set
+  `DIAL_QUERY_ASSISTANT_DEPLOYMENT` in `.env` to a model's deployment ID.
 
 ## Change settings
 
@@ -229,195 +216,101 @@ docker compose up --wait
 ```
 
 Use **this folder's** `.env` for all settings, including the simple setup's
-ones such as `OLLAMA_CHAT_MODEL` or `DIAL_CHAT_PORT`. Docker Compose does not
-put `.env` values into JSON files: when a setting names a value that also
-appears in `../core/**/*.json`, `.env.example` says what to change there too.
+ones such as `OLLAMA_CHAT_MODEL` or `DIAL_CHAT_PORT`.
 
-When you change the code in `dial_entity_samples`, rebuild and restart it:
-
-```sh
-docker compose up --wait --build agent-app-sample pre-post-interceptor
-```
-
-## Details
-
-### DIAL Admin without Admin Backend
-
-Admin talks to Core directly (`DIAL_CORE_API_URL=http://core:8080`) and leaves
-`DIAL_ADMIN_API_URL` unset. It forwards the signed-in user's token to Core.
-Core treats users with the `admin` role as administrators; `dial-admin`
-receives it through the `dial-admin-console` client roles in Keycloak.
-
-Use the **AI Gateway**, **Artifacts** and **Governance** sections. The
-**Entities**, **Builders**, **Access Management** and **Audit** menus are
-hidden because they need the Admin Backend, which is not deployed.
-Whole-configuration import and export are not available either.
-
-The JSON files hold file-defined defaults. Resources that you create in Admin
-are stored in Core's storage (the `../core-data` folder); Admin never rewrites
-the JSON files.
-
-### Evaluation
-
-Sign in to Admin as `dial-admin` and open **Evaluation**: Datasets, Test Suites
-and Runs.
-
-- Admin calls `evaluation-backend`, forwarding the user's Keycloak token. The
-  backend accepts the `admin` and `ConfigAdmin` roles.
-- The backend and Evaluation Metrics call Core with the API key
-  `dial_evaluation_api_key` from `../core/2-dial-advanced-setup/config.json`. If you change
-  `DIAL_EVALUATION_API_KEY` in `.env`, change the key there too.
-- `evaluation-metrics` supplies the metric catalog and calculations, including
-  RAG metrics. The backend syncs the catalog at startup and every five minutes.
-- PostgreSQL keeps metadata in `evaluation_db` and results in
-  `evaluation_analytics_db`. Keep `EVALUATION_POSTGRES_PASSWORD` unchanged
-  while you keep its data.
-
-The judge and embedding models are `ollama-qwen2.5` and
-`ollama-all-minilm` (`EVALUATION_JUDGE_MODEL` and
-`EVALUATION_EMBEDDING_MODEL` in `.env`). The small qwen2.5 model is enough to
-check that everything is connected; use a stronger judge model for meaningful
-LLM-based scores. Metrics such as `exact_match` and `regex_match` do not use a
-judge model.
-
-### Analytics
-
-Core writes a log line for every request to the `../logs` folder. Vector
-(`logger`) reads these logs and sends them to `analytics`, which writes usage
-metrics to InfluxDB. Optional topic-model downloads are turned off.
-
-Admin's newer **Analytics** section (Dashboards, Queries, Sessions, Tables,
-Pipelines) needs a separate service, the
-[Analytics data-access service](../readmes/analytics-data-access-service-README.md),
-which this setup does not deploy. To connect one, set its base URL, reachable
-from the `admin-frontend` container, in `.env`, then recreate Admin:
+After changing the code of a sample in `../1-dial-simple-setup/dial_entity_samples`,
+rebuild it from this folder:
 
 ```sh
-# In .env, for a service running on your computer:
-# DIAL_ANALYTICS_API_URL=http://host.docker.internal:<port>
-docker compose up --wait --no-deps admin-frontend
+docker compose up --wait --build agent-app-sample
 ```
 
-| Admin variable | Meaning |
+## Files and data
+
+In this folder:
+
+| File or folder | What it is |
 | --- | --- |
-| `DIAL_ANALYTICS_API_URL` | Base URL of the data-access service. Setting it shows the Analytics section. |
-| `DIAL_ANALYTICS_RUNNER_API_URL` | Optional enrichment runner for pipeline runtime controls |
-| `DIAL_QUERY_ASSISTANT_DEPLOYMENT` | Optional Core deployment for the Queries AI view |
+| `docker-compose.yml` | The services this setup adds |
+| `simple-setup-overrides.yml` | The changes to the simple setup's services |
+| `.env.example` | Optional settings: ports, passwords, models, versions |
+| `analytics/` | Analytics settings: Vector, ClickHouse, the recommended catalog and its initializer |
+| `evaluation/init-db.sql` | Creates the second Evaluation database on the first start |
 
-The data-access service must accept tokens from the same Keycloak realm. The
-InfluxDB metrics above are not migrated into it.
+In the repository root:
 
-### Roles
+| File or folder | What it is |
+| --- | --- |
+| `core/2-dial-advanced-setup/config.json` | The Evaluation API key and the `ConfigAdmin` role |
+| `core/2-dial-advanced-setup/scheduler.json` | The Scheduler application and its service key |
+| `core/2-dial-advanced-setup/quick-apps-schemas.json` | The Quick Apps application type. Core reads this file itself. |
+| `core-data/`, `logs/` | Core's storage and request logs, shared with the simple setup |
 
-This setup uses the three roles of the simple setup to decide who sees what.
-Each model and application lists its roles in `userRoles` in
-`../core/2-dial-advanced-setup/config.json`:
+Docker volumes keep the data of the other services: Keycloak users
+(`dial_keycloak-data`), downloaded models (`dial_ollama-data`), and one volume
+for each database. `docker compose down -v` deletes them.
 
-| Models and applications | `userRoles` | Signed-in users who see them |
+Keep `core-data/` and `dial_keycloak-data` together: Core keeps each user's
+chats under their Keycloak user ID. If you delete only the volume, Keycloak
+creates the users again with new IDs, and they lose their chats.
+
+## Service APIs
+
+| Service | Address | Access |
 | --- | --- | --- |
-| From the simple setup: `ollama-qwen2.5`, `ollama-llama3.2`, `ollama-all-minilm`, Essay Assistant | `user`, `admin`, `default` | `user` and `dial` |
-| Added by this setup: AI Agent Sample, `ollama-qwen2.5-with-interceptor`, `ollama-llava-vision` | `admin`, `default` | `dial` only |
+| Evaluation Backend | <http://localhost:8060/swagger-ui.html> | Keycloak token of `dial-admin` |
+| Evaluation Metrics | <http://localhost:8061/docs> | Open |
+| Analytics (ADAS) | <http://localhost:8062/swagger-ui.html> | Header `api-key: dial_admin_api_key`, or a Keycloak token of `dial-admin` |
+| Analytics Enrichment Runner | <http://localhost:8066/actuator/health/readiness> | Health is open; everything else needs a Keycloak token of `dial-admin` |
+| Scheduler | <http://localhost:8067/docs> | Call it through Core, as described in [Scheduler](#scheduler) |
+| Themes | <http://localhost:8063> | Open |
+| Ollama | <http://localhost:8064> | Open |
 
-| Role | Who has it |
-| --- | --- |
-| `user` | The user `user` |
-| `admin` | The user `dial`, and `dial-admin` in DIAL Admin |
-| `default` | The API keys `dial_api_key` and `dial_evaluation_api_key`, so the API examples and Evaluation reach every model |
-
-Users get their roles from `../1-dial-simple-setup/keycloak/realm-config.json`,
-which already has them on Keycloak's first start, for both setups. An
-application calls models with the roles of the user who called it, so the user
-`user` cannot reach LLaVA through another application either.
-
-Core merges its configuration files, so this setup adds `userRoles` to the
-simple setup's models without changing `../core/1-dial-simple-setup/config.json`.
-The simple setup alone sets no `userRoles`: there, every user sees every model.
-To give a model or application to more users, add their role to its `userRoles`.
-
-### Models
-
-| Core deployment ID | Ollama model | Used by |
-| --- | --- | --- |
-| `ollama-qwen2.5` | `qwen2.5:0.5b` | Chat, AI Agent Sample, Quick Apps, Evaluation judge |
-| `ollama-llama3.2` | `llama3.2:1b` | Chat |
-| `ollama-all-minilm` | `all-minilm` | Evaluation embeddings |
-| `ollama-qwen2.5-with-interceptor` | `qwen2.5:0.5b` | The interceptor sample |
-| `ollama-llava-vision` | `llava` | Picture analysis in AI Agent Sample |
-
-The first three come from the simple setup.
-
-To change an Ollama model, change its `overrideName` in the JSON and its
-`OLLAMA_*_MODEL` download name in `.env`. An empty `OLLAMA_VISION_MODEL` skips
-the LLaVA download. LLaVA runs on the CPU: the first picture takes up to a
-minute, while the model loads.
-
-The cloud models `gpt-4o`, `claude-sonnet-4` and `gemini` are configured but
-hidden (`"userRoles": []`). To use one, configure its provider, then give it
-roles such as `["admin", "default"]` in `../core/2-dial-advanced-setup/config.json`:
-
-- **OpenAI:** put your key into the `gpt-4o` upstream `key`. The adapter is
-  already running.
-- **AWS Bedrock:** set the AWS credentials and region in `.env`. Put the
-  Bedrock model ID or inference profile ID into both `overrideName` and the
-  endpoint path.
-- **Google Vertex AI:** set `GCP_PROJECT_ID` and `VERTEXAI_REGION` in `.env`,
-  and save an ADC JSON file as `credentials/google.json` in this folder. Put
-  the model ID into both `overrideName` and the endpoint path.
-
-Both adapters always run; apply a `.env` change with `docker compose up --wait`.
-Never commit real credentials: `.env` and `credentials/` are ignored by Git.
-
-### Data
-
-These folders and Docker volumes keep all data between restarts:
-
-| Folder or volume | Contents |
-| --- | --- |
-| `../core-data/` folder | Core storage: chats, files, resources created in Admin |
-| `../logs/` folder | Core request logs for analytics |
-| `dial_keycloak-data` | Keycloak users and sessions |
-| `dial_ollama-data` | Downloaded models |
-| `dial_evaluation-postgres-data` | Evaluation datasets, suites and results |
-| `dial_influxdb-data`, `dial_influxdb-config` | Usage metrics |
-| `dial_vector-data` | Vector's read position and buffer |
-
-Keycloak reads `../1-dial-simple-setup/keycloak/realm-config.json` only when it
-creates the realm on its first start. Likewise, InfluxDB and PostgreSQL apply
-their initial credentials only on their first start. Keep Core's encryption
-settings unchanged while you keep its data.
-
-Core keeps each user's chats in `../core-data/dial/core/Users/<Keycloak user ID>/`.
-Keep `../core-data` and the `dial_keycloak-data` volume together: if you delete
-only the volume, Keycloak creates the users again with new IDs, and they no
-longer see their old chats.
-
-## Checks
+Check that everything is up:
 
 ```sh
 docker compose ps -a
-docker compose logs core quickapps-backend admin-frontend
 curl --fail http://localhost:8059/openai/models -H 'api-key: dial_api_key'
 curl --fail http://localhost:8060/api/v1/health
 curl --fail http://localhost:8061/health
+curl --fail http://localhost:8062/actuator/health/readiness
+curl --fail http://localhost:8066/actuator/health/readiness
+curl --fail http://localhost:8067/ready
 ```
 
-Ask the interceptor model a question; the answer contains two stages:
+Count the requests that Analytics has loaded:
 
 ```sh
-curl http://localhost:8059/openai/deployments/ollama-qwen2.5-with-interceptor/chat/completions \
-  -H 'api-key: dial_api_key' -H 'Content-Type: application/json' \
-  -d '{"messages":[{"role":"user","content":"Say hello"}]}'
+curl http://localhost:8062/v1/queries/execute-sql \
+  -H 'api-key: dial_admin_api_key' -H 'Content-Type: application/json' \
+  -d '{"sql":"SELECT count(*) AS requests FROM dial_usage_log"}'
 ```
 
 ## Troubleshooting
 
 | Problem | What to do |
 | --- | --- |
+| **Scheduled tasks** is missing in Chat | Run `docker compose up -d --wait chat` from this folder, then reload Chat. |
+| Creating a scheduled task fails | Do the one-time [Scheduler](#scheduler) setup. |
 | Services stop or restart by themselves, or LLaVA fails to load | Docker has too little memory. Give it at least 16 GB. |
-| `docker compose up` says a port is already allocated | Change the port in `.env`. |
-| You started the simple setup while this one was running | Run `docker compose up --wait` here again. |
-| The agent's web search returns no results | DuckDuckGo sometimes shows a bot check. The agent says that the search failed; try again later. |
-| A sample does not pick up your code changes | Run `docker compose up --wait --build <service>`. |
+| `docker compose up` says a port is already allocated | Change the port in this folder's `.env`. |
+| Things broke after you started the simple setup while this one was running | Run `docker compose up --wait` here again. |
+| A sample does not pick up your code changes | Run `docker compose up --wait --build <service>` from this folder. |
+| AI Agent Sample's web search finds nothing | DuckDuckGo sometimes shows a bot check. The agent says that the search failed; try again later. |
+| Analytics shows usage but no sessions | Wait up to 15 minutes. In DIAL Admin, check that the pipelines `usage-client-identity-live` and `sessions_rollup` are enabled. |
+| Analytics does not start after updating these samples | Delete the `DIAL_ANALYTICS_VERSION` line from `.env`, then run `docker compose up --wait --remove-orphans`. Check `docker compose logs analytics analytics-init`. |
 
 See also the simple setup's [troubleshooting](../1-dial-simple-setup/README.md#troubleshooting).
-Reference documentation for every DIAL service is in [readmes](../readmes/).
+Reference documentation for each DIAL service is in [readmes](../readmes/).
+
+## Updating from InfluxDB analytics
+
+Earlier versions of this setup kept analytics in InfluxDB. To switch, delete any
+`DIAL_ANALYTICS_VERSION` line from `.env`, then run:
+
+```sh
+docker compose up --wait --remove-orphans
+```
+
+This removes the InfluxDB container but keeps its volume. Old InfluxDB data is
+not moved, but Vector loads every request whose log is still in `../logs`.

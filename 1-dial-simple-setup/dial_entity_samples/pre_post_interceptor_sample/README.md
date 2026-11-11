@@ -10,13 +10,18 @@ answer shows "Executed 2 steps"; open it to see both stages.
 
 ## How it is connected
 
-[`core/2-dial-advanced-setup/config.json`](../../../core/2-dial-advanced-setup/config.json)
+[`core/1-dial-simple-setup/config.json`](../../../core/1-dial-simple-setup/config.json)
 in the repository root registers the interceptor and a model that uses it:
 
 ```json
 "interceptors": {
   "pre-post-interceptor": {
-    "endpoint": "http://pre-post-interceptor:5041/openai/deployments/pre-post-interceptor/chat/completions"
+    "interfaces": {
+      "openaiChatCompletions": {
+        "mode": "passthrough",
+        "base_url": "http://pre-post-interceptor:5041"
+      }
+    }
   }
 },
 "models": {
@@ -25,6 +30,9 @@ in the repository root registers the interceptor and a model that uses it:
   }
 }
 ```
+
+`core-config-apply` copies them into Core on the first start. After that,
+change them in DIAL Admin.
 
 For a request to that model, Core calls the interceptor first. The interceptor
 calls Core again, and Core continues to the model. The interceptor forwards

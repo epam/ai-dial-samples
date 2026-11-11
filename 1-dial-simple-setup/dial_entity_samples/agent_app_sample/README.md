@@ -7,8 +7,8 @@ converted into observations by the vision deployment; the chat model then uses
 those observations and can search the web to compose its answer. This sample
 analyzes pictures; it does not generate or edit them.
 
-The advanced setup builds and starts it. After changing the code, rebuild it
-from `2-dial-advanced-setup`:
+Both setups build and start it. After changing the code, rebuild it in the
+folder that you started DIAL from:
 
 ```sh
 docker compose up --wait --build agent-app-sample
@@ -26,13 +26,13 @@ Select **AI Agent Sample** in Chat. The app uses these environment variables:
 | `AGENT_APP_PORT` | `8065` | Host port published by Compose; the app listens on 5025 |
 | `WEB_SEARCH_URL` | `https://html.duckduckgo.com/html` | Search endpoint; override locally for simulation |
 
-Set `AGENT_MODEL` and `VISION_MODEL` in the advanced setup's `.env`, then recreate
-the app. These are **Core deployment IDs**, not Ollama pull names. Changing the
-underlying Ollama model requires updating its `overrideName` in
-`core/2-dial-advanced-setup/config.json` (in the repository root) and the
-corresponding `OLLAMA_*_MODEL` pull name. A larger
-tool-capable model improves search decisions compared with the small default
-Qwen 0.5B. Cloud deployments must first be enabled in Core with credentials.
+Set `AGENT_MODEL` and `VISION_MODEL` in the `.env` of the folder that you
+started DIAL from, then run `docker compose up --wait`. These are **Core
+deployment IDs**, not Ollama model names. To change the Ollama model behind a
+deployment, see
+[Change a model](../../README.md#change-a-model). A larger model that supports
+tools makes better search decisions than the small default, Qwen 0.5B. To use a
+cloud model, [set it up](../../README.md#use-cloud-models) first.
 
 The app forwards the incoming DIAL API key for model and DIAL file requests.
 It does not need a separate configured API key. No prompts or keys are logged.

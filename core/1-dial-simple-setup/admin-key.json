@@ -1,0 +1,8 @@
+{
+  "keys": {
+    "dial_admin_api_key": {
+      "project": "DIAL-DEMO",
+      "role": "admin"
+    }
+  }
+}

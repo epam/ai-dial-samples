@@ -1,4 +1,4 @@
-# DIAL simple setup: Chat + Core + local Ollama models + Essay Assistant + Quick Apps.
+# DIAL simple setup: Chat + Admin + Core + local/cloud models + sample apps and interceptor.
 # Start:  docker compose up --wait      Stop:  docker compose down
 #
 # Both setups share the Compose project name "dial", so ../2-dial-advanced-setup
@@ -8,7 +8,7 @@
 #   ../core-data  Core storage: chats, files, resources created in Admin
 #   ../logs       Core request logs
 #
-# The Chat and Quick Apps images are published for linux/amd64 only. On an Apple
+# The Chat and Admin images are published for linux/amd64 only. On an Apple
 # Silicon Mac, set DIAL_PLATFORM=linux/amd64 in .env so Docker runs them through
 # emulation. The other images have ARM builds and run natively.
 name: dial
@@ -35,18 +35,22 @@ services:
       AUTH_KEYCLOAK_SECRET: ${AUTH_KEYCLOAK_SECRET:-keycloak_secret}
       DIAL_ROLES_FIELD: roles
       ADMIN_ROLE_NAMES: admin
-      # Allow the Quick Apps editor to open inside Chat.
-      ALLOWED_IFRAME_ORIGINS: http://localhost:${QUICKAPPS_FRONTEND_PORT:-8057}
     depends_on:
       core:
         condition: service_healthy
+      core-config-apply:
+        condition: service_completed_successfully
       themes:
         condition: service_started
-      adapter-dial-openai:
-        condition: service_started
+      model-provider:
+        condition: service_healthy
       ollama-init:
         condition: service_completed_successfully
       essay-assistant-app:
+        condition: service_healthy
+      agent-app-sample:
+        condition: service_healthy
+      pre-post-interceptor:
         condition: service_healthy
     healthcheck:
       test: [CMD, node, -e, "fetch('http://localhost:5000/api/health', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
@@ -55,7 +59,44 @@ services:
       retries: 20
       start_period: 30s
 
-  # Colors, logos and model icons for Chat
+  # Admin UI talking directly to Core (no Admin Backend), http://localhost:8056
+  admin-frontend:
+    image: epam/ai-dial-admin-frontend:${DIAL_ADMIN_FRONTEND_VERSION:-0.22.1}
+    platform: ${DIAL_PLATFORM:-}
+    restart: unless-stopped
+    ports: ["127.0.0.1:${DIAL_ADMIN_FRONTEND_PORT:-8056}:3000"]
+    environment:
+      # Leave DIAL_ADMIN_API_URL unset: use the Core-direct UI.
+      DIAL_CORE_API_URL: http://core:8080
+      DIAL_LINK: http://localhost:${DIAL_CHAT_PORT:-8055}
+      ANALYTICS_ENABLED: "false"
+      NEXTAUTH_URL: http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-local-development-nextauth-secret-change-me}
+      NEXTAUTH_COOKIE_PREFIX: admin
+      AUTH_KEYCLOAK_HOST: http://keycloak.localhost:${KC_PORT:-8058}/realms/dial
+      AUTH_KEYCLOAK_CLIENT_ID: dial-admin-console
+      AUTH_KEYCLOAK_SECRET: ${AUTH_KEYCLOAK_SECRET:-keycloak_secret}
+      AUTH_KEYCLOAK_ADMIN_ROLE_NAMES: ConfigAdmin,admin
+      AUTH_KEYCLOAK_DIAL_ROLES_FIELD: roles
+      THEMES_CONFIG_URL: http://themes:8080
+      # These menus need the Admin Backend, which is not deployed.
+      DISABLE_MENU_ITEMS: entities builders accessmanagement audit
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      core:
+        condition: service_healthy
+      core-config-apply:
+        condition: service_completed_successfully
+      themes:
+        condition: service_started
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3000/api/health', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # Colors, logos and model icons for Chat and Admin
   themes:
     image: epam/ai-dial-chat-themes:${DIAL_THEMES_VERSION:-0.21.0}
     restart: unless-stopped
@@ -63,20 +104,16 @@ services:
 
   # DIAL Core: the API gateway in front of every model and application, http://localhost:8059
   core:
-    image: epam/ai-dial-core:${DIAL_CORE_VERSION:-0.49.3}
+    image: epam/ai-dial-core:${DIAL_CORE_VERSION:-0.49.4}
     restart: unless-stopped
     ports: ["127.0.0.1:${DIAL_CORE_PORT:-8059}:8080"]
     environment:
       # Server settings, and where Core writes its request logs (/app/log).
       AIDIAL_SETTINGS: /opt/config/settings.json
       JAVA_OPTS: -Dgflog.config=/opt/config/gflog.xml
-      # Models, applications, API keys, roles and the Quick Apps application type.
-      # Core re-reads these files every 3 seconds.
-      aidial.config.files: >-
-        ["/opt/config/1-dial-simple-setup/config.json",
-        "/opt/config/1-dial-simple-setup/quick-apps-schemas.json"]
-      aidial.config.reload: "3000"
-      # List custom applications such as Quick Apps in Chat.
+      # Only the bootstrap admin key is file-configured; core-config-apply stores the other entities.
+      aidial.config.files: '["/opt/config/1-dial-simple-setup/admin-key.json"]'
+      # List custom applications in Chat.
       aidial.applications.includeCustomApps: "true"
       # Users sign in with Keycloak; Core validates their tokens.
       aidial.identityProviders.keycloak.jwksUrl: http://keycloak:${KC_PORT:-8058}/realms/dial/protocol/openid-connect/certs
@@ -98,9 +135,8 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy
-      # Core fetches the Quick Apps schema from this service when it starts.
-      quickapps-backend:
-        condition: service_healthy
+    # Lets Core reach sample entities running in a local debugger.
+    extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - ../core:/opt/config:ro
       - ../core-data:/app/data
@@ -111,6 +147,29 @@ services:
       timeout: 3s
       retries: 30
       start_period: 30s
+
+  # Copies the models, applications, API keys and roles of
+  # ../core/1-dial-simple-setup/config.json into Core's storage, then exits.
+  # Each file is applied once and listed in ../core-data/core-config-apply.json;
+  # later starts skip it, so changes made in DIAL Admin are kept.
+  # See ../core-config-apply/README.md.
+  core-config-apply:
+    build: ../core-config-apply
+    # Always use the importer shipped with this checkout, including on upgrades.
+    pull_policy: build
+    environment:
+      CORE_URL: http://core:8080
+      # The admin key from ../core/1-dial-simple-setup/admin-key.json.
+      API_KEY: dial_admin_api_key
+      CONFIG_FILES: core/1-dial-simple-setup/config.json
+      STATE_FILE: core-data/core-config-apply.json
+    volumes:
+      - ../core:/dial/core:ro
+      - ../core-data:/dial/core-data
+    depends_on:
+      core:
+        condition: service_healthy
+    restart: "no"
 
   # Cache used by Core
   redis:
@@ -124,13 +183,22 @@ services:
       timeout: 3s
       retries: 10
 
-  # Translates Core requests for OpenAI-compatible models (here: Ollama)
-  adapter-dial-openai:
-    image: epam/ai-dial-adapter-openai:${DIAL_OPENAI_ADAPTER_VERSION:-0.45.1}
+  # One process for OpenAI-compatible, Bedrock, Vertex AI and DIAL models
+  model-provider:
+    image: epam/ai-dial-model-provider:${DIAL_MODEL_PROVIDER_VERSION:-0.1.0-rc.0}
     restart: unless-stopped
     environment:
       DIAL_URL: http://core:8080
       LOG_LEVEL: INFO
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      AWS_ASSUME_ROLE_ARN: ${AWS_ASSUME_ROLE_ARN:-}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+      GCP_DEFAULT_REGION: ${VERTEXAI_REGION:-us-central1}
+      GOOGLE_APPLICATION_CREDENTIALS: /opt/credentials/google.json
+    volumes: ["./credentials:/opt/credentials:ro"]
     healthcheck:
       test: [CMD-SHELL, "wget -q --spider http://127.0.0.1:5000/health || exit 1"]
       interval: 10s
@@ -138,7 +206,11 @@ services:
       retries: 6
       start_period: 30s
 
-  # Writes essays using the existing Ollama deployment through Core.
+  # ---------------------------------------------------------------------------
+  # DIAL entity samples: your own code, built from ./dial_entity_samples
+  # ---------------------------------------------------------------------------
+
+  # Application "Essay Assistant": writes short essays with ollama-qwen2.5 through Core.
   essay-assistant-app:
     build: ./dial_entity_samples/essay_assistant_app
     restart: unless-stopped
@@ -148,8 +220,8 @@ services:
     depends_on:
       core:
         condition: service_healthy
-      adapter-dial-openai:
-        condition: service_started
+      model-provider:
+        condition: service_healthy
       ollama-init:
         condition: service_completed_successfully
     healthcheck:
@@ -158,67 +230,34 @@ services:
       timeout: 5s
       retries: 10
 
-  # Runs Quick Apps. Core fetches the Quick Apps schema from it
-  # (../core/1-dial-simple-setup/quick-apps-schemas.json).
-  quickapps-backend:
-    image: epam/ai-dial-quickapps-backend:${DIAL_QUICKAPPS_BACKEND_VERSION:-0.13.1}
-    platform: ${DIAL_PLATFORM:-}
+  # Application "AI Agent Sample": web search and picture analysis, http://localhost:8065
+  agent-app-sample:
+    build: ./dial_entity_samples/agent_app_sample
+    restart: unless-stopped
+    ports: ["127.0.0.1:${AGENT_APP_PORT:-8065}:5025"]
+    environment:
+      DIAL_URL: http://core:8080
+      AGENT_MODEL: ${AGENT_MODEL:-ollama-qwen2.5}
+      VISION_MODEL: ${VISION_MODEL:-ollama-llava-vision}
+      MODEL_TIMEOUT_SECONDS: ${MODEL_TIMEOUT_SECONDS:-300}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5025/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Interceptor "pre-post-interceptor": adds stages before and after a model's answer.
+  # Core calls it for the "qwen2.5 + pre/post interceptor" model; it has no published port.
+  pre-post-interceptor:
+    build: ./dial_entity_samples/pre_post_interceptor_sample
     restart: unless-stopped
     environment:
       DIAL_URL: http://core:8080
-      DEFAULT_ORCHESTRATOR_DEPLOYMENT_ID: ${DEFAULT_DEPLOYMENT:-ollama-qwen2.5}
-      APP_SCHEMA_ID: https://mydial.epam.com/custom_application_schemas/quickapps2
-      LOG_LEVEL: INFO
-      QUICKAPP_LOG_LEVEL: INFO
-      ENABLE_PREVIEW_FEATURES: "false"
     healthcheck:
-      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=3)"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-
-  # Quick Apps editor, opened from an application's settings in Chat, http://localhost:8057
-  quickapps-frontend:
-    image: epam/ai-dial-quickapps-frontend:${DIAL_QUICKAPPS_FRONTEND_VERSION:-0.3.0}
-    platform: ${DIAL_PLATFORM:-}
-    restart: unless-stopped
-    ports: ["127.0.0.1:${QUICKAPPS_FRONTEND_PORT:-8057}:5000"]
-    environment:
-      PORT: "5000"
-      API_PREFIX: api
-      DIAL_CORE_URL: http://core:8080
-      AUTH_SESSION_SECRET: ${AUTH_SESSION_SECRET:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
-      AUTH_CALLBACK_BASE_URL: http://localhost:${QUICKAPPS_FRONTEND_PORT:-8057}
-      CORS_ORIGIN: http://localhost:${QUICKAPPS_FRONTEND_PORT:-8057}
-      AUTH_COOKIE_SECURE: "false"
-      # Separate cookies from Chat and Admin, which share the localhost site.
-      AUTH_SESSION_COOKIE_NAME: quickapps.sess
-      AUTH_TRANSACTION_COOKIE_NAME: quickapps.tx
-      AUTH_KEYCLOAK_HOST: http://keycloak.localhost:${KC_PORT:-8058}/realms/dial
-      AUTH_KEYCLOAK_CLIENT_ID: dial-quickapps
-      AUTH_KEYCLOAK_SECRET: ${AUTH_KEYCLOAK_SECRET:-keycloak_secret}
-      AUTH_KEYCLOAK_DIAL_ROLES_FIELD: roles
-      DEFAULT_DEPLOYMENT: ${DEFAULT_DEPLOYMENT:-ollama-qwen2.5}
-      THEMES_CONFIG_URL: http://themes:8080
-      ALLOWED_IFRAME_ORIGINS: http://localhost:${DIAL_CHAT_PORT:-8055},http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}
-      # Code interpreter, web fetch and preview attachments are not deployed here.
-      CUSTOM_CLIENT_VARIABLES: >-
-        {"allowedOrigin":["http://localhost:${DIAL_CHAT_PORT:-8055}","http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}"],
-        "dialChatHost":"http://localhost:${DIAL_CHAT_PORT:-8055}",
-        "dialAdminHost":"http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}",
-        "codeInterpreterEnabled":false,"webFetchEnabled":false,"addAttachmentEnabled":false}
-    depends_on:
-      core:
-        condition: service_started
-      themes:
-        condition: service_started
-    healthcheck:
-      test: [CMD, node, -e, "fetch('http://localhost:5000/api/health', {signal: AbortSignal.timeout(3000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5041/health', timeout=3)"]
       interval: 10s
       timeout: 5s
-      retries: 20
-      start_period: 30s
+      retries: 10
 
   # Runs open-source models on your computer (CPU), http://localhost:8064
   ollama:
@@ -259,12 +298,14 @@ services:
         ${OLLAMA_CHAT_MODEL:-qwen2.5:0.5b}
         ${OLLAMA_SECOND_CHAT_MODEL:-llama3.2:1b}
         ${OLLAMA_EMBEDDING_MODEL:-all-minilm}
+        ${OLLAMA_VISION_MODEL-llava}
     restart: "no"
 
   # Sign-in (users and passwords), admin console: http://keycloak.localhost:8058/admin
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.0
     restart: unless-stopped
+    platform: ${DIAL_PLATFORM:-}
     command: [start-dev, --import-realm, "--http-port=${KC_PORT:-8058}", --hostname-backchannel-dynamic=true]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
@@ -272,8 +313,7 @@ services:
       KC_HOSTNAME: http://keycloak.localhost:${KC_PORT:-8058}
       KC_HEALTH_ENABLED: "true"
       KC_HTTP_ENABLED: "true"
-      # Used by keycloak/realm-config.json. The realm also registers the
-      # DIAL Admin sign-in client of the advanced setup.
+      # The shared realm pre-registers the advanced editor client for upgrades too.
       DIAL_CHAT_URL: http://localhost:${DIAL_CHAT_PORT:-8055}
       DIAL_ADMIN_URL: http://localhost:${DIAL_ADMIN_FRONTEND_PORT:-8056}
       DIAL_QUICKAPPS_URL: http://localhost:${QUICKAPPS_FRONTEND_PORT:-8057}

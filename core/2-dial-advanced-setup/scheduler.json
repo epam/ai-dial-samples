@@ -1,0 +1,58 @@
+{
+  "manifests": [
+    {
+      "kind": "Key",
+      "name": "keys/platform/dial_scheduler_api_key",
+      "spec": {
+        "project": "DIAL-SCHEDULER",
+        "role": "default",
+        "key": "dial_scheduler_api_key"
+      }
+    },
+    {
+      "kind": "Application",
+      "name": "applications/public/dial_scheduler",
+      "spec": {
+        "displayName": "DIAL Scheduler",
+        "description": "Schedule DIAL applications and HTTP requests using REST or MCP",
+        "mcp": {
+          "endpoint": "http://scheduler:5000/mcp",
+          "transport": "http",
+          "forwardPerRequestKey": true
+        },
+        "routes": {
+          "api": {
+            "paths": [
+              "/v1/.*"
+            ],
+            "methods": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ],
+            "rewritePath": true,
+            "upstreams": [
+              {
+                "endpoint": "http://scheduler:5000"
+              }
+            ],
+            "permissions": [
+              "READ"
+            ]
+          }
+        },
+        "app_identity": "85bc6d7ada251caf0cadcefc4882a53e23662957e016705ef925aa3bc46649e9",
+        "external_services": {
+          "dial-native": {
+            "display_name": "DIAL",
+            "auth_settings": {
+              "authentication_type": "DIAL_NATIVE"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

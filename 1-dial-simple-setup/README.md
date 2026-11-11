@@ -1,31 +1,59 @@
 # 1. DIAL simple setup
 
-The smallest DIAL you can run: a chat window, the DIAL Core gateway and three
-small open-source models that run on your computer's CPU, plus an Essay Assistant
-application powered by the local `ollama-qwen2.5` deployment and Quick Apps, which
-build assistants without code.
+The smallest complete DIAL: Chat, Admin and Core, with small open-source models
+that run on your computer, and three sample applications written in Python.
+No API keys or cloud account needed.
 
 ## Start
+
+Give Docker Desktop at least 16 GB of memory (**Settings → Resources**), then
+run in this folder:
 
 ```sh
 docker compose up --wait
 ```
 
-The command finishes when DIAL is ready. The first start downloads about 7 GB
-of Docker images and models, so it takes a few minutes. To watch the model
-downloads, run `docker compose logs -f ollama-init` in a second terminal.
+The command finishes when DIAL is ready. The first start downloads about 13 GB
+of images and models, so it takes a while. To watch the model downloads, run
+`docker compose logs -f ollama-init` in a second terminal.
 
-On a Mac with Apple Silicon (M1 or newer), first run
-`echo DIAL_PLATFORM=linux/amd64 >> .env` in this folder. DIAL Chat and Quick
-Apps have no ARM build yet, so this tells Docker to run them through emulation.
-Windows, Linux and Intel Macs need nothing.
+> [!NOTE]
+> **Apple Silicon Mac (M1 or newer)?** Before the first start, run
+> `echo DIAL_PLATFORM=linux/amd64 >> .env` in this folder. Chat and Admin have
+> no ARM build yet, so Docker runs them through emulation.
+>
+> **Only 8 GB of memory for Docker?** Run `echo OLLAMA_VISION_MODEL= >> .env`
+> to skip LLaVA, the 4.7 GB picture model. Everything else works; AI Agent
+> Sample just cannot look at pictures.
 
-Open <http://localhost:8055> and sign in:
+## Sign in
 
-| Username | Password | Can do |
-| --- | --- | --- |
-| `user` | `dial` | Chat with models |
-| `dial` | `dial` | Chat with models, plus Chat admin actions |
+| Open | Sign in as | Password | What you get |
+| --- | --- | --- | --- |
+| Chat, <http://localhost:8055> | `dial` | `dial` | All models and applications |
+| Chat, <http://localhost:8055> | `user` | `dial` | Only the basic models and Essay Assistant: see [Who can use what](#who-can-use-what) |
+| DIAL Admin, <http://localhost:8056> | `dial-admin` | `dial` | Manage models, applications, API keys and roles |
+
+## Things to try
+
+1. **Chat with a model.** Sign in to Chat as `dial` and say hello to
+   **qwen2.5**. It runs on your CPU, so the first answer can take a minute while
+   the model loads.
+2. **Use an application.** Select **Essay Assistant** and click one of its
+   conversation starters. A DIAL *application* is your own code that Core calls
+   just like a model. This one asks qwen2.5 for a short essay.
+3. **Try an AI agent.** Select **AI Agent Sample**. Ask it to search the web,
+   or attach a picture and ask what is in it.
+4. **See an interceptor.** Select **qwen2.5 + pre/post interceptor** and send a
+   message. The answer shows a *Greeting* and a *Goodbye* stage: an
+   *interceptor* is code that Core runs around a model's answer.
+5. **Look behind the scenes.** Sign in to DIAL Admin as `dial-admin` and open
+   **AI Gateway** to see and change every model, application and interceptor.
+6. **Call the API.** Everything Chat does goes through Core's API, which you
+   can call too: see [Call the API](#call-the-api).
+
+The code of the three samples is in [dial_entity_samples](dial_entity_samples/README.md),
+with a guide to changing them and adding your own.
 
 ## Stop
 
@@ -33,9 +61,11 @@ Open <http://localhost:8055> and sign in:
 docker compose down
 ```
 
-Your chats, users and the downloaded model are kept for the next start. To
-delete them too and start from scratch, run `docker compose down -v`, then
-delete the `core-data` and `logs` folders in the repository root.
+Your chats, users and downloaded models are kept for the next start.
+
+To delete everything and start from scratch, run `docker compose down -v`, then
+delete the `core-data` and `logs` folders in the repository root. The next
+start sets everything up again, including the models from `config.json`.
 
 ## What is running
 
@@ -43,112 +73,122 @@ delete the `core-data` and `logs` folders in the repository root.
 flowchart LR
     you((You))
     chat[DIAL Chat]
-    themes[DIAL Themes]
+    admin[DIAL Admin]
     keycloak[Keycloak]
     core{DIAL Core}
-    essay[Essay Assistant]
-    editor[Quick Apps editor]
-    quickapps[Quick Apps Backend]
-    redis[(Redis)]
-    adapter[OpenAI adapter]
+    apply[core-config-apply]
+    samples[Sample applications<br/>and interceptor]
+    provider[Model Provider]
     ollama[Ollama]
-    models[[qwen2.5, llama3.2,<br/>all-minilm models]]
+    cloud[Cloud models<br/>optional]
 
-    you -->|Browser| chat
-    chat -->|Sign in| keycloak
-    chat -->|Colors and icons| themes
+    you --> chat & admin
+    chat & admin -->|Sign in| keycloak
     chat -->|Your messages| core
-    chat -->|Open editor| editor
-    editor -->|Manage applications| core
-    core -->|Check sign-in| keycloak
-    core <-->|Cache| redis
-    core -->|Model requests| adapter
-    core -->|Essay requests| essay
-    essay -->|ollama-qwen2.5| core
-    core -->|Run Quick Apps| quickapps
-    quickapps -->|Model calls| core
-    adapter -->|OpenAI API| ollama
-    ollama --- models
+    admin -->|Manage models and apps| core
+    apply -->|First start: models,<br/>apps, keys, roles| core
+    core <-->|Requests| samples
+    core -->|Model requests| provider
+    provider --> ollama
+    provider -.-> cloud
 ```
+
+Every request goes through DIAL Core. Core checks who is calling, then sends
+the request to a model, through Model Provider, or to an application. The
+sample applications call models back through Core.
 
 | Service | What it does | Address on your computer |
 | --- | --- | --- |
-| `chat` | The web page where you talk to models | <http://localhost:8055> |
+| `chat` | DIAL Chat: the web page where you talk to models | <http://localhost:8055> |
+| `admin-frontend` | DIAL Admin: manage models, applications and other Core resources | <http://localhost:8056> |
 | `core` | DIAL Core: one API in front of all models and applications | <http://localhost:8059> |
-| `keycloak` | Sign-in: users, passwords and roles | <http://keycloak.localhost:8058/admin> (`admin` / `admin-password`) |
-| `themes` | Colors, logos and model icons for Chat | <http://localhost:8063> |
-| `adapter-dial-openai` | Translates DIAL requests for OpenAI-compatible models | Inside Docker only |
-| `essay-assistant-app` | Writes short essays using `ollama-qwen2.5` through Core | Inside Docker only |
-| `quickapps-backend` | Runs Quick Apps | Inside Docker only |
-| `quickapps-frontend` | The Quick Apps editor, opened from an application's settings in Chat | <http://localhost:8057> |
+| `core-config-apply` | Copies `config.json` into Core on the first start, then stops | Not a server |
+| `model-provider` | Connects Core to Ollama and to cloud model providers | Inside Docker only |
 | `ollama` | Runs open-source models on your CPU | <http://localhost:8064> |
 | `ollama-init` | Downloads the models into Ollama, then stops | Not a server |
-| `redis` | Fast cache for Core | Inside Docker only |
+| `essay-assistant-app` | Sample application: Essay Assistant | Inside Docker only |
+| `agent-app-sample` | Sample application: AI Agent Sample | <http://localhost:8065> (use it through Chat) |
+| `pre-post-interceptor` | Sample interceptor | Inside Docker only |
+| `keycloak` | Sign-in: users, passwords and roles | <http://keycloak.localhost:8058/admin> (`admin` / `admin-password`) |
+| `themes` | Colors, logos and model icons for Chat and Admin | <http://localhost:8063> |
+| `redis` | Cache for Core | Inside Docker only |
 
-## Files
-
-In this folder:
-
-| File | What it is |
-| --- | --- |
-| `docker-compose.yml` | Which services run and how they connect |
-| `dial_entity_samples/essay_assistant_app/` | Essay Assistant source, Dockerfile and Python dependencies |
-| `keycloak/realm-config.json` | Users, passwords and sign-in clients. Read only on Keycloak's first start. |
-| `.env.example` | Optional settings: ports, passwords, model, versions |
-
-DIAL Core's folders are in the repository root, because the advanced setup
-uses them too:
-
-| File or folder | What it is | Inside the `core` container |
-| --- | --- | --- |
-| `../core/1-dial-simple-setup/config.json` | Core's applications, models, API keys and roles. Core re-reads it every 3 seconds, so edits apply without a restart. | `/opt/config/1-dial-simple-setup/config.json` |
-| `../core/1-dial-simple-setup/quick-apps-schemas.json` | Registers the Quick Apps application type in Core | `/opt/config/1-dial-simple-setup/quick-apps-schemas.json` |
-| `../core/settings.json` | Core's server settings | `/opt/config/settings.json` |
-| `../core/gflog.xml` | Where Core writes its logs | `/opt/config/gflog.xml` |
-| `../core-data/` | Core's storage: your chats and files. Created on the first start. | `/app/data` |
-| `../logs/` | Core's request logs, one file per day. Created on the first start. | `/app/log` |
+All addresses work only on your computer (`127.0.0.1`).
 
 ## Models
 
-| Core deployment ID | Ollama model | Kind | Setting in `.env` |
-| --- | --- | --- | --- |
-| `ollama-qwen2.5` | `qwen2.5:0.5b` (about 0.4 GB) | Chat, selected in Chat by default | `OLLAMA_CHAT_MODEL` |
-| `ollama-llama3.2` | `llama3.2:1b` (about 1.3 GB) | Chat | `OLLAMA_SECOND_CHAT_MODEL` |
-| `ollama-all-minilm` | `all-minilm` (about 46 MB) | Embeddings: turns text into 384 numbers | `OLLAMA_EMBEDDING_MODEL` |
+| Deployment ID | What it is |
+| --- | --- |
+| `ollama-qwen2.5` | Chat model `qwen2.5:0.5b`, about 0.4 GB. Selected in Chat by default. |
+| `ollama-llama3.2` | Chat model `llama3.2:1b`, about 1.3 GB |
+| `ollama-all-minilm` | Embedding model `all-minilm`, about 46 MB. It turns text into 384 numbers; call it through the API. |
+| `ollama-llava-vision` | Picture model `llava`, about 4.7 GB, used by AI Agent Sample |
+| `ollama-qwen2.5-with-interceptor` | `qwen2.5:0.5b` again, with the sample interceptor |
+| `gpt-4o`, `claude-sonnet-4`, `gemini` | Cloud models: hidden until you [set them up](#use-cloud-models) |
 
-In Chat, pick a chat model in the model selector. Embedding models do not chat;
-call them through the API.
+A *deployment ID* is the name that Chat and the API use for a model or
+application. All of them are defined in
+[`../core/1-dial-simple-setup/config.json`](../core/1-dial-simple-setup/config.json).
 
-Select **Essay Assistant** in Chat to write a short essay. Its conversation
-starters are available in the application settings. Compose sets `DIAL_MODEL`
-to `ollama-qwen2.5`, which routes through Core and the OpenAI adapter to Ollama.
-After changing the assistant's code or dependencies, rebuild it with
-`docker compose up --wait --build essay-assistant-app`.
+## Who can use what
 
-## Quick Apps
+Every user and API key has *roles*. A model or application can list the roles
+that may use it in `userRoles`; with no list, every role may use it.
 
-To build an assistant without code, create a Quick App in Chat, open its
-settings and select a model that supports tools, such as `ollama-qwen2.5`.
+| Role | Who has it |
+| --- | --- |
+| `admin` | The user `dial` in Chat, and `dial-admin` in DIAL Admin |
+| `user` | The user `user` |
+| `default` | The API key `dial_api_key` |
 
-`../core/1-dial-simple-setup/quick-apps-schemas.json` registers the Quick Apps
-application type, as described in
-[quickapps-be-schema-info.md](../readmes/quickapps-be-schema-info.md). Core
-fetches the full schema from `quickapps-backend` at
-`/v1/configuration-support/application-schema`, so it always matches the
-backend. That is why Core waits for the backend's health check before starting.
+| Models and applications | `userRoles` | Who can use them |
+| --- | --- | --- |
+| `ollama-qwen2.5`, `ollama-llama3.2`, `ollama-all-minilm` | Not set | Everyone |
+| Essay Assistant | `user`, `admin`, `default` | Everyone |
+| AI Agent Sample, `ollama-llava-vision`, `ollama-qwen2.5-with-interceptor` | `admin`, `default` | `dial` and `dial_api_key`, not `user` |
+| `gpt-4o`, `claude-sonnet-4`, `gemini` | Empty | Nobody, until you add roles |
 
-The editor has its own `dial-quickapps` Keycloak client. Chat and the editor
-use separate cookie names on `localhost`, so the editor works inside Chat's
-pages without third-party cookies. Code interpreter, web fetch and preview
-attachments are turned off because those services are not deployed.
+To give something to more users, add their role to it in DIAL Admin. Users get
+their roles from Keycloak, in [`keycloak/realm-config.json`](keycloak/realm-config.json).
 
-`dial:applicationTypeEditorUrl` in the schema file is the literal
-`http://localhost:8057`. If you change `QUICKAPPS_FRONTEND_PORT`, change it too.
+## Use cloud models
 
-## Try the API
+`gpt-4o`, `claude-sonnet-4` and `gemini` are set up but hidden, because they
+need your own credentials. Model Provider, which already runs the local models,
+also talks to these providers.
 
-Everything Chat does goes through Core's API. You can call it yourself with
-the API key `dial_api_key` from `../core/1-dial-simple-setup/config.json`:
+1. Add your credentials:
+   - **OpenAI** (`gpt-4o`): in DIAL Admin, open the `gpt-4o` model and put your
+     OpenAI API key into its upstream key.
+   - **AWS Bedrock** (`claude-sonnet-4`): in `.env`, set `AWS_ACCESS_KEY_ID`,
+     `AWS_SECRET_ACCESS_KEY` and `AWS_DEFAULT_REGION`.
+   - **Google Vertex AI** (`gemini`): in `.env`, set `GCP_PROJECT_ID` and
+     `VERTEXAI_REGION`, and save a Google credentials JSON file as
+     `credentials/google.json` in this folder.
+
+   After changing `.env`, run `docker compose up --wait`.
+2. Make the model visible: in DIAL Admin, add the roles `admin` and `default`
+   to the model.
+3. Sign in to Chat as `dial` and select the model.
+
+To use another cloud model, put its model ID into both `overrideName` and the
+endpoint, such as `.../compat/bedrock/openai/deployments/<model ID>/chat/completions`.
+
+Never commit real credentials. Git ignores `.env` and `credentials/`.
+
+## Call the API
+
+The API key `dial_api_key` comes from
+[`../core/1-dial-simple-setup/config.json`](../core/1-dial-simple-setup/config.json).
+
+List the models and applications that the key can use:
+
+```sh
+curl http://localhost:8059/openai/models -H 'api-key: dial_api_key'
+curl http://localhost:8059/openai/applications -H 'api-key: dial_api_key'
+```
+
+Chat with a model:
 
 ```sh
 curl http://localhost:8059/openai/deployments/ollama-qwen2.5/chat/completions \
@@ -156,7 +196,7 @@ curl http://localhost:8059/openai/deployments/ollama-qwen2.5/chat/completions \
   -d '{"messages":[{"role":"user","content":"Say hello"}]}'
 ```
 
-Ask the Essay Assistant to write an essay:
+Call an application the same way, with its deployment ID:
 
 ```sh
 curl http://localhost:8059/openai/deployments/essay-assistant-app/chat/completions \
@@ -172,15 +212,9 @@ curl http://localhost:8059/openai/deployments/ollama-all-minilm/embeddings \
   -d '{"input":["Hello, DIAL"]}'
 ```
 
-List the models that Core knows:
-
-```sh
-curl http://localhost:8059/openai/models -H 'api-key: dial_api_key'
-```
-
 ## Change settings
 
-Everything works without changes. To change a port, password or a model:
+Everything works without changes. To change a port, a password or a model:
 
 ```sh
 cp .env.example .env
@@ -188,21 +222,57 @@ cp .env.example .env
 docker compose up --wait
 ```
 
-Docker Compose does not put `.env` values into JSON files. For example, to use
-another Ollama model for `ollama-qwen2.5`, change both:
+`.env.example` explains every setting.
 
-1. `OLLAMA_CHAT_MODEL` in `.env`, such as `qwen2.5:1.5b`;
-2. `overrideName` of `ollama-qwen2.5` in `../core/1-dial-simple-setup/config.json`, to the same name.
+### Change a model
 
-The other models work the same way, with the settings from the [Models](#models) table.
+Docker Compose does not put `.env` values into JSON files, so a model change
+takes two steps. For example, to run `qwen2.5:1.5b` as `ollama-qwen2.5`:
 
-A bigger model gives better answers but needs more memory and is slower on a CPU.
+1. Set `OLLAMA_CHAT_MODEL=qwen2.5:1.5b` in `.env`, then run
+   `docker compose up --wait` to download it.
+2. In DIAL Admin, set the `overrideName` of `ollama-qwen2.5` to `qwen2.5:1.5b`.
+   `ollama-qwen2.5-with-interceptor` uses the same model; change it too.
 
-## Next step
+The other models work the same way, with `OLLAMA_SECOND_CHAT_MODEL`,
+`OLLAMA_EMBEDDING_MODEL` and `OLLAMA_VISION_MODEL`. A bigger model gives better
+answers, but needs more memory and is slower on a CPU.
 
-When you are ready for more, go to [2-dial-advanced-setup](../2-dial-advanced-setup/README.md).
-You do not need to stop this setup first: starting the advanced one upgrades
-it in place.
+### Apply config.json again
+
+Core reads `../core/1-dial-simple-setup/config.json` only on the first start
+(see [how this works](../README.md#how-dial-core-gets-its-models-and-applications)).
+To apply your edits to it later:
+
+```sh
+rm ../core-data/core-config-apply.json
+docker compose up --wait
+```
+
+This overwrites the changes you made in Admin to the entities in that file.
+
+## Files
+
+In this folder:
+
+| File | What it is |
+| --- | --- |
+| `docker-compose.yml` | Which services run and how they connect |
+| `.env.example` | Optional settings: ports, passwords, models, cloud credentials |
+| `dial_entity_samples/` | Source code of the sample applications and the interceptor |
+| `keycloak/realm-config.json` | Users, passwords and roles. Keycloak reads it only on its first start. |
+| `credentials/` | Optional Google credentials for Vertex AI; ignored by Git |
+
+In the repository root, shared with the advanced setup:
+
+| File or folder | What it is |
+| --- | --- |
+| `core/1-dial-simple-setup/config.json` | Models, applications, the interceptor, API keys and roles, copied into Core on the first start |
+| `core/1-dial-simple-setup/admin-key.json` | The admin API key `dial_admin_api_key`. Core reads this file itself. |
+| `core/settings.json`, `core/gflog.xml` | Core's server and log settings |
+| `core-config-apply/` | The service that copies `config.json` into Core |
+| `core-data/` | Core's storage: chats, files, models, applications, keys and roles |
+| `logs/` | Core's request logs, one file per day |
 
 ## Troubleshooting
 
@@ -210,12 +280,22 @@ it in place.
 | --- | --- |
 | `docker compose up` says a port is already allocated | Another program uses that port. Change the port in `.env`, for example `DIAL_CHAT_PORT=9055`. |
 | The sign-in page does not open | Your system must resolve `keycloak.localhost` to your computer. Add the line `127.0.0.1 keycloak.localhost` to your hosts file. |
-| Services stop or restart by themselves | Docker has too little memory. Give it at least 8 GB in Docker Desktop's **Settings → Resources**. |
-| `ollama-init` fails | It needs an internet connection the first time. Run `docker compose logs ollama-init` to see why, then run `docker compose up --wait` again. |
-| `no matching manifest for linux/arm64` | You are on an Apple Silicon Mac, and Chat and Quick Apps have no ARM build. Run `echo DIAL_PLATFORM=linux/amd64 >> .env`, then `docker compose up --wait` again. |
-| Very slow on an Apple Silicon Mac | Chat and Quick Apps run through emulation. Turn on **Use Rosetta for x86_64/amd64 emulation** in Docker Desktop's **Settings → General**. Models answer slowly on the CPU: give Docker more CPUs in **Settings → Resources**. |
-| You changed a password in `.env`, but the old one still works | Keycloak applies `realm-config.json` only on its first start. Change the password in the Keycloak admin console, or start from scratch as described in [Stop](#stop). |
+| `no matching manifest for linux/arm64` | You are on an Apple Silicon Mac. Run `echo DIAL_PLATFORM=linux/amd64 >> .env`, then `docker compose up --wait` again. |
+| Services stop or restart by themselves | Docker has too little memory. Give it 16 GB, or skip the picture model with `OLLAMA_VISION_MODEL=` in `.env`. |
+| Very slow on an Apple Silicon Mac | Turn on **Use Rosetta for x86_64/amd64 emulation** in Docker Desktop's **Settings → General**, and give Docker more CPUs in **Settings → Resources**. |
+| `ollama-init` fails | It needs internet access the first time. Check `docker compose logs ollama-init`, then run `docker compose up --wait` again. |
+| `core-config-apply` fails | Check `docker compose logs core-config-apply`: it names each entity that Core rejected, and why. Core stores nothing from a file that has an error. Fix the file, then run `docker compose up --wait` again. |
+| You edited `config.json`, but nothing changed | Core reads it only on the first start. [Apply it again](#apply-configjson-again), or make the change in DIAL Admin. |
+| A model or application is missing in Chat | Sign in as `dial`: some samples are not available to `user`. See [Who can use what](#who-can-use-what). |
+| You changed a password in `.env`, but the old one still works | Keycloak reads passwords only on its first start. Change it in the Keycloak admin console, or [start from scratch](#stop). |
 
 See what a service is doing with `docker compose logs <service>`, for example
-`docker compose logs core`. See the status of all services with
+`docker compose logs core`, and the status of all services with
 `docker compose ps -a`.
+
+## Next steps
+
+- [Change the samples or write your own application](dial_entity_samples/README.md)
+- [2-dial-advanced-setup](../2-dial-advanced-setup/README.md): Quick Apps,
+  Scheduler, Evaluation and Analytics. You do not need to stop this setup
+  first: starting the advanced one upgrades it in place.
