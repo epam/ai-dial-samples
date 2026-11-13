@@ -133,12 +133,21 @@
       "displayName": "qwen2.5 + pre/post interceptor",
       "description": "The same qwen2.5 model, wrapped by the pre-post-interceptor sample that adds a stage before and after the answer",
       "overrideName": "qwen2.5:0.5b",
-      "endpoint": "http://model-provider:5000/compat/openai/openai/deployments/qwen2.5/chat/completions",
+      "baseUrl": "http://model-provider:5000/compat/openai",
+      "interfaces": {
+        "openaiChatCompletions": {
+          "mode": "passthrough"
+        }
+      },
       "upstreams": [
         {
           "id": "1",
-          "endpoint": "http://ollama:11434/v1/chat/completions",
-          "key": "ollama"
+          "key": "ollama",
+          "interfaces": {
+            "openaiChatCompletions": {
+              "endpoint": "http://ollama:11434/v1/chat/completions"
+            }
+          }
         }
       ],
       "interceptors": [
@@ -153,7 +162,12 @@
       "type": "chat",
       "displayName": "Ollama vision",
       "overrideName": "llava",
-      "endpoint": "http://model-provider:5000/compat/openai/openai/deployments/ollama-vision/chat/completions",
+      "baseUrl": "http://model-provider:5000/compat/openai",
+      "interfaces": {
+        "openaiChatCompletions": {
+          "mode": "passthrough"
+        }
+      },
       "inputAttachmentTypes": [
         "image/png",
         "image/jpeg"
@@ -161,8 +175,12 @@
       "upstreams": [
         {
           "id": "1",
-          "endpoint": "http://ollama:11434/v1/chat/completions",
-          "key": "ollama"
+          "key": "ollama",
+          "interfaces": {
+            "openaiChatCompletions": {
+              "endpoint": "http://ollama:11434/v1/chat/completions"
+            }
+          }
         }
       ],
       "userRoles": [
@@ -170,44 +188,39 @@
         "default"
       ]
     },
-    "gpt-4o": {
+    "gpt-6.1-terra": {
       "type": "chat",
-      "displayName": "GPT 4o",
-      "overrideName": "gpt-4o",
+      "displayName": "GPT 6.1 Terra",
       "endpoint": "http://model-provider:5000/compat/openai/openai/deployments/gpt-4o/chat/completions",
+      "baseUrl": "http://model-provider:5000/compat/openai",
+      "interfaces": {
+        "openaiChatCompletions": {
+          "mode": "passthrough"
+        },
+        "openaiResponses": {
+          "mode": "passthrough"
+        }
+      },
       "upstreams": [
         {
           "id": "1",
-          "endpoint": "https://api.openai.com/v1/chat/completions",
-          "key": ""
+          "key": "WRONG_KEY",
+          "interfaces": {
+            "openaiChatCompletions": {
+              "endpoint": "https://api.openai.com/v1/chat/completions"
+            },
+            "openaiResponses": {
+              "endpoint": "https://api.openai.com/v1/responses"
+            }
+          }
         }
       ],
       "features": {
         "tools_supported": true
       },
-      "userRoles": []
-    },
-    "claude-sonnet-4": {
-      "type": "chat",
-      "displayName": "Claude on Bedrock",
-      "overrideName": "anthropic.claude-sonnet-4-20250514-v1:0",
-      "endpoint": "http://model-provider:5000/compat/bedrock/openai/deployments/anthropic.claude-sonnet-4-20250514-v1:0/chat/completions",
-      "features": {
-        "tools_supported": true
-      },
-      "userRoles": [],
-      "upstreams": []
-    },
-    "gemini": {
-      "type": "chat",
-      "displayName": "Gemini on Vertex AI",
-      "overrideName": "gemini-2.5-flash",
-      "endpoint": "http://model-provider:5000/compat/vertexai/openai/deployments/gemini-2.5-flash/chat/completions",
-      "features": {
-        "tools_supported": true
-      },
-      "userRoles": [],
-      "upstreams": []
+      "userRoles": [
+        "admin"
+      ]
     }
   },
   "keys": {

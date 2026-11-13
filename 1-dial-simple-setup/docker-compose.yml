@@ -148,8 +148,9 @@ services:
       retries: 30
       start_period: 30s
 
-  # Copies every model, application, interceptor, API key and role of both setups
-  # (../core/config.json and ../core/scheduler.json) into Core's storage, then exits.
+  # Copies every model, application, interceptor, API key and role from
+  # ../core/config.json into Core's storage, then exits. The advanced setup also
+  # applies ../core/scheduler.json.
   # Each file is applied once and listed in ../core-data/core-config-apply.json;
   # later starts skip it, so changes made in DIAL Admin are kept. See ../core/README.md.
   core-config-apply:
@@ -160,7 +161,7 @@ services:
       CORE_URL: http://core:8080
       # The admin key from ../core/admin-key.json.
       API_KEY: dial_admin_api_key
-      CONFIG_FILES: core/config.json core/scheduler.json
+      CONFIG_FILES: core/config.json
       STATE_FILE: core-data/core-config-apply.json
     volumes:
       - ../core:/dial/core:ro

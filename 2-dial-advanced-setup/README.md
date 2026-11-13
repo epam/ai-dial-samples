@@ -34,7 +34,7 @@ upgrades it in place and keeps its users, chats and models.
 
 | What | Address | Sign in as |
 | --- | --- | --- |
-| Chat | <http://localhost:8055> | `dial` / `dial` for everything, or `user` / `dial` |
+| Chat | <http://localhost:8055> | `dial` / `dial` or `dial-admin` / `dial` for everything, `user` / `dial` for less |
 | DIAL Admin | <http://localhost:8056> | `dial-admin` / `dial` |
 | Quick Apps editor | Opens from a Quick App's settings in Chat | Signs you in automatically |
 | Core API | <http://localhost:8059> | Header `api-key: dial_api_key` |
@@ -112,20 +112,23 @@ and the Enrichment Runner adds session information on top.
 ## How this folder extends the simple setup
 
 This folder does not copy the simple setup. Its `docker-compose.yml` includes
-it, and `simple-setup-overrides.yml` changes three of its services:
+it, and `simple-setup-overrides.yml` changes four of its services:
 
 | Service | Change |
 | --- | --- |
 | `chat` | Turns on **Scheduled tasks** and allows the Quick Apps editor |
 | `admin-frontend` | Turns on **Evaluation** and **Analytics** |
 | `core` | Reads the Quick Apps application type, signs users in for Scheduler, and logs a few client headers for Analytics |
+| `core-config-apply` | Also applies `../core/scheduler.json`: the Scheduler application and its API key |
 
-This setup adds no models or applications of its own. The simple setup's
-`core-config-apply` puts every model, application, interceptor, API key and
-role into Core on the first start, including the ones that only this setup
-uses: the Scheduler application and the Evaluation API key (see
+The Scheduler application and its key are the only entities that this setup
+adds to Core. Every model, application, interceptor and role, and the
+Evaluation API key, come from `../core/config.json`, which the simple setup
+applies too (see
 [how this works](../README.md#how-dial-core-gets-its-models-and-applications)).
-So upgrading a running simple setup changes nothing in Core's storage.
+When you upgrade a running simple setup, `core-config-apply` skips
+`config.json` and applies only `scheduler.json`, so your changes in DIAL Admin
+are kept.
 
 ## Quick Apps
 

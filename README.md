@@ -41,13 +41,14 @@ without losing anything.
 2. In a terminal, run:
 
    ```sh
-   cd 1-dial-simple-setup
+   git clone https://github.com/epam/ai-dial-samples.git
+   cd ai-dial-samples/1-dial-simple-setup
    docker compose up --wait
    ```
 
    On a Mac with Apple Silicon (M1 or newer), run
-   `echo DIAL_PLATFORM=linux/amd64 >> .env` after `cd 1-dial-simple-setup` and
-   before `docker compose up`. DIAL Chat and Admin have no ARM build yet, so
+   `echo DIAL_PLATFORM=linux/amd64 >> .env` after `cd` and before
+   `docker compose up`. DIAL Chat and Admin have no ARM build yet, so
    this tells Docker to run them through emulation. Windows, Linux and Intel Macs
    need nothing.
 
@@ -58,7 +59,11 @@ without losing anything.
 Say hello to the **qwen2.5** model. 🎉
 
 To manage models and applications, open DIAL Admin at <http://localhost:8056>
-and sign in as `dial-admin`, password `dial`.
+and sign in as `dial-admin`, password `dial`. Both `dial` and `dial-admin` can
+use every model and application in Chat.
+
+Next, try the sample applications: see
+[things to try](1-dial-simple-setup/README.md#things-to-try).
 
 To stop DIAL, run `docker compose down` in the same folder. Your chats are kept
 for the next start.
@@ -76,7 +81,8 @@ ai-dial-samples/
 │   └── simple-setup-overrides.yml   What step 2 changes in step 1's services
 ├── core/                      DIAL Core configuration, used by both setups
 │   ├── config.json            Every model, application, interceptor, API key and role
-│   └── config-apply/          Copies config.json into Core on the first start
+│   ├── scheduler.json         The Scheduler application, setup 2 only
+│   └── config-apply/          Copies these files into Core on the first start
 ├── core-data/                 Core's storage: chats, files, models, apps (created on first start)
 └── logs/                      Core's request logs (created on first start)
 ```
@@ -104,8 +110,9 @@ flowchart LR
 ```
 
 1. On the first `docker compose up` of either setup, the `core-config-apply`
-   service sends every entity in `core/config.json` to Core, then stops. It
-   adds all of them, including the ones that only setup 2 uses.
+   service sends every entity in `core/config.json` to Core, then stops.
+   Setup 2 also sends `core/scheduler.json`, the Scheduler application, which
+   only setup 2 runs.
 2. It lists the files it applied in `core-data/core-config-apply.json`, and
    skips them on every later start.
 3. From then on, **change models and applications in DIAL Admin**. Your changes
@@ -133,8 +140,8 @@ setup 1's services in `simple-setup-overrides.yml`.
 
 Both setups use the Docker Compose project name `dial`. Starting setup 2
 upgrades a running setup 1 in place and keeps its downloaded models, users and
-chats. Setup 2 adds services, but no models or applications: setup 1 has
-already put all of them into Core.
+chats. Setup 2 adds services and one application, DIAL Scheduler; every model
+and the other applications come from setup 1's `core/config.json`.
 
 ## Updating from an earlier version of these samples
 
@@ -152,6 +159,9 @@ docker compose up --wait --build --remove-orphans
   on this start. Your chats are kept.
 - If your `.env` came from an older `.env.example`, delete its `*_VERSION`
   lines: some of those images were renamed or replaced.
+- Keycloak keeps the users from its first start. If `dial-admin` sees fewer
+  models in Chat than `dial`, give it the Chat role: see the simple setup's
+  [troubleshooting](1-dial-simple-setup/README.md#troubleshooting).
 
 ## Learn more
 

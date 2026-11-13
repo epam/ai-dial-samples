@@ -5,8 +5,8 @@ this folder into the `core` container at `/opt/config`.
 
 | File | What it is | Who reads it |
 | --- | --- | --- |
-| [`config.json`](config.json) | Every model, application, interceptor, API key and role of both setups | `core-config-apply`, on the first start |
-| [`scheduler.json`](scheduler.json) | The Scheduler application and its API key | `core-config-apply`, on the first start |
+| [`config.json`](config.json) | Every model, application, interceptor, API key and role, except the Scheduler's | `core-config-apply`, on the first start |
+| [`scheduler.json`](scheduler.json) | The Scheduler application and its API key. Only the advanced setup uses it, because only that setup runs Scheduler. | `core-config-apply`, on the first start of the advanced setup |
 | [`admin-key.json`](admin-key.json) | The admin API key `dial_admin_api_key` | Core |
 | [`quick-apps-schemas.json`](quick-apps-schemas.json) | The Quick Apps application type. Only the advanced setup uses it, because it needs Quick Apps Backend. | Core |
 | [`settings.json`](settings.json) | Core's server settings | Core |
@@ -21,18 +21,19 @@ storage, in `../core-data`. DIAL Admin views and changes that storage.
 On the first start of either setup, the `core-config-apply` service fills it:
 
 1. It waits until Core is healthy.
-2. It sends every entity of `config.json` to Core's API, `POST /v1/admin/apply`,
-   then does the same for `scheduler.json`.
-3. It lists both files in `../core-data/core-config-apply.json`, with the time,
-   each file's SHA-256 and the IDs of the stored entities, then stops.
+2. It sends every entity of `config.json` to Core's API, `POST /v1/admin/apply`.
+   In the advanced setup, it then does the same for `scheduler.json`.
+3. It lists the applied files in `../core-data/core-config-apply.json`, with the
+   time, each file's SHA-256 and the IDs of the stored entities, then stops.
 
 On every later start, it skips the files that are listed. If you have changed a
 file since, its log says so. That is why changes made in DIAL Admin are kept
 across restarts.
 
-The simple setup applies both files, so it already has the entities that only
-the advanced setup uses, such as the Scheduler application and the Evaluation
-API key. They do nothing until the advanced setup starts their services.
+When you upgrade a running simple setup to the advanced one, `config.json` is
+already listed, so only `scheduler.json` is applied. `config.json` also has the
+Evaluation API key, which does nothing until the advanced setup starts
+Evaluation.
 
 Core checks all entities of a file before it stores any of them. If one is
 invalid, nothing from that file is stored, and `docker compose logs core-config-apply`
@@ -70,6 +71,8 @@ outside `platform`: the Scheduler application must be public,
 ## core-config-apply settings
 
 Docker Compose sets these in [`../1-dial-simple-setup/docker-compose.yml`](../1-dial-simple-setup/docker-compose.yml).
+The advanced setup adds `scheduler.json` to `CONFIG_FILES` in
+[`../2-dial-advanced-setup/simple-setup-overrides.yml`](../2-dial-advanced-setup/simple-setup-overrides.yml).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |

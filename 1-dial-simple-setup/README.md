@@ -30,9 +30,9 @@ of images and models, so it takes a while. To watch the model downloads, run
 
 | Open | Sign in as | Password | What you get |
 | --- | --- | --- | --- |
-| Chat, <http://localhost:8055> | `dial` | `dial` | All models and applications |
+| Chat, <http://localhost:8055> | `dial` | `dial` | Every model and application |
 | Chat, <http://localhost:8055> | `user` | `dial` | Only the basic models and Essay Assistant: see [Who can use what](#who-can-use-what) |
-| DIAL Admin, <http://localhost:8056> | `dial-admin` | `dial` | Manage models, applications, API keys and roles |
+| DIAL Admin, <http://localhost:8056> | `dial-admin` | `dial` | Manage models, applications, API keys and roles. In Chat, the same access as `dial`. |
 
 ## Things to try
 
@@ -47,8 +47,10 @@ of images and models, so it takes a while. To watch the model downloads, run
 4. **See an interceptor.** Select **qwen2.5 + pre/post interceptor** and send a
    message. The answer shows a *Greeting* and a *Goodbye* stage: an
    *interceptor* is code that Core runs around a model's answer.
-5. **Look behind the scenes.** Sign in to DIAL Admin as `dial-admin` and open
-   **AI Gateway** to see and change every model, application and interceptor.
+5. **Look behind the scenes.** Sign in to DIAL Admin as `dial-admin`. Under
+   **AI Gateway**, open **Models** or **Applications**, then the `platform`
+   folder: these are the entities from `config.json`, and you can change them
+   here.
 6. **Call the API.** Everything Chat does goes through Core's API, which you
    can call too: see [Call the API](#call-the-api).
 
@@ -124,19 +126,18 @@ All addresses work only on your computer (`127.0.0.1`).
 | `ollama-all-minilm` | Embedding model `all-minilm`, about 46 MB. It turns text into 384 numbers; call it through the API. |
 | `ollama-llava-vision` | Picture model `llava`, about 4.7 GB, used by AI Agent Sample |
 | `ollama-qwen2.5-with-interceptor` | `qwen2.5:0.5b` again, with the sample interceptor |
-| `gpt-4o`, `claude-sonnet-4`, `gemini` | Cloud models: hidden until you [set them up](#use-cloud-models) |
+| `gpt-6.1-terra` | Cloud model from OpenAI. It answers with an error until you [add your API key](#use-cloud-models). |
 
 A *deployment ID* is the name that Chat and the API use for a model or
 application. All of them are defined in
 [`../core/config.json`](../core/config.json), which this setup copies into
 Core on its first start.
 
-That file also has the entities that only the
-[advanced setup](../2-dial-advanced-setup/README.md) uses, so that upgrading
-needs no extra step: the API key of Evaluation, and the **DIAL Scheduler**
-application from [`../core/scheduler.json`](../core/scheduler.json). DIAL
-Scheduler is listed here too, but it works only in the advanced setup, which
-runs its service.
+That file also has the API key of Evaluation, which only the
+[advanced setup](../2-dial-advanced-setup/README.md) uses. The advanced setup
+adds the **DIAL Scheduler** application from
+[`../core/scheduler.json`](../core/scheduler.json), because only that setup
+runs Scheduler.
 
 ## Who can use what
 
@@ -145,7 +146,7 @@ that may use it in `userRoles`; with no list, every role may use it.
 
 | Role | Who has it |
 | --- | --- |
-| `admin` | The user `dial` in Chat, and `dial-admin` in DIAL Admin |
+| `admin` | The users `dial` and `dial-admin`. They can use every model and application. |
 | `user` | The user `user` |
 | `default` | The API key `dial_api_key` |
 
@@ -153,36 +154,36 @@ that may use it in `userRoles`; with no list, every role may use it.
 | --- | --- | --- |
 | `ollama-qwen2.5`, `ollama-llama3.2`, `ollama-all-minilm` | Not set | Everyone |
 | Essay Assistant | `user`, `admin`, `default` | Everyone |
-| AI Agent Sample, `ollama-llava-vision`, `ollama-qwen2.5-with-interceptor` | `admin`, `default` | `dial` and `dial_api_key`, not `user` |
-| `gpt-4o`, `claude-sonnet-4`, `gemini` | Empty | Nobody, until you add roles |
+| AI Agent Sample, `ollama-llava-vision`, `ollama-qwen2.5-with-interceptor` | `admin`, `default` | `dial`, `dial-admin` and `dial_api_key`, not `user` |
+| `gpt-6.1-terra` | `admin` | `dial` and `dial-admin` |
 
 To give something to more users, add their role to it in DIAL Admin. Users get
 their roles from Keycloak, in [`keycloak/realm-config.json`](keycloak/realm-config.json).
 
 ## Use cloud models
 
-`gpt-4o`, `claude-sonnet-4` and `gemini` are set up but hidden, because they
-need your own credentials. Model Provider, which already runs the local models,
-also talks to these providers.
+Cloud models need your own credentials. Model Provider, which already runs the
+local models, also connects to OpenAI, AWS Bedrock and Google Vertex AI.
 
-1. Add your credentials:
-   - **OpenAI** (`gpt-4o`): in DIAL Admin, open the `gpt-4o` model and put your
-     OpenAI API key into its upstream key.
-   - **AWS Bedrock** (`claude-sonnet-4`): in `.env`, set `AWS_ACCESS_KEY_ID`,
-     `AWS_SECRET_ACCESS_KEY` and `AWS_DEFAULT_REGION`.
-   - **Google Vertex AI** (`gemini`): in `.env`, set `GCP_PROJECT_ID` and
-     `VERTEXAI_REGION`, and save a Google credentials JSON file as
-     `credentials/google.json` in this folder. The advanced setup uses this
-     folder's `credentials/` too.
+**OpenAI.** `gpt-6.1-terra` is ready for your key. In DIAL Admin, open
+**Models**, then `platform` and `gpt-6.1-terra`, and replace the upstream key
+`WRONG_KEY` with your OpenAI API key. Then select **GPT 6.1 Terra** in Chat,
+signed in as `dial`.
 
-   After changing `.env`, run `docker compose up --wait`. In the advanced
-   setup, use its own `.env`.
-2. Make the model visible: in DIAL Admin, add the roles `admin` and `default`
-   to the model.
-3. Sign in to Chat as `dial` and select the model.
+**AWS Bedrock or Google Vertex AI.**
 
-To use another cloud model, put its model ID into both `overrideName` and the
-endpoint, such as `.../compat/bedrock/openai/deployments/<model ID>/chat/completions`.
+1. Add your credentials to `.env`, then run `docker compose up --wait`. In the
+   advanced setup, use its own `.env`.
+   - Bedrock: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and
+     `AWS_DEFAULT_REGION`.
+   - Vertex AI: `GCP_PROJECT_ID` and `VERTEXAI_REGION`. Also save a Google
+     credentials JSON file as `credentials/google.json` in this folder. The
+     advanced setup uses this folder's `credentials/` too.
+2. In DIAL Admin, create a model. Set `overrideName` to the provider's model
+   ID, and the endpoint to
+   `http://model-provider:5000/compat/bedrock/openai/deployments/<model ID>/chat/completions`
+   (use `vertexai` instead of `bedrock` for Vertex AI).
+3. Add the role `admin` to the model, so that `dial` and `dial-admin` see it.
 
 Never commit real credentials. Git ignores `.env` and `credentials/`.
 
@@ -292,7 +293,8 @@ In the repository root, shared with the advanced setup:
 | `ollama-init` fails | It needs internet access the first time. Check `docker compose logs ollama-init`, then run `docker compose up --wait` again. |
 | `core-config-apply` fails | Check `docker compose logs core-config-apply`: it names each entity that Core rejected, and why. Core stores nothing from a file that has an error. Fix the file, then run `docker compose up --wait` again. |
 | You edited `config.json`, but nothing changed | Core reads it only on the first start. [Apply it again](#apply-configjson-again), or make the change in DIAL Admin. |
-| A model or application is missing in Chat | Sign in as `dial`: some samples are not available to `user`. See [Who can use what](#who-can-use-what). |
+| A model or application is missing in Chat | Sign in as `dial` or `dial-admin`: some samples are not available to `user`. See [Who can use what](#who-can-use-what). |
+| `dial-admin` sees fewer models in Chat than `dial` | Your Keycloak was created by an earlier version of these samples. In the Keycloak admin console, open the realm `dial`, then **Users**, `dial-admin`, **Role mapping**, and assign the role `admin` of the client `dial-chat`. Then sign in to Chat again. |
 | You changed a password in `.env`, but the old one still works | Keycloak reads passwords only on its first start. Change it in the Keycloak admin console, or [start from scratch](#stop). |
 
 See what a service is doing with `docker compose logs <service>`, for example

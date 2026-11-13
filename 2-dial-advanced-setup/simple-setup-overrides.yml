@@ -54,3 +54,9 @@ services:
       # Core fetches the Quick Apps schema at startup.
       quickapps-backend:
         condition: service_healthy
+
+  # Also stores the Scheduler application and its API key. A file that was already
+  # applied is skipped, so upgrading from the simple setup adds only scheduler.json.
+  core-config-apply:
+    environment:
+      CONFIG_FILES: core/config.json core/scheduler.json
